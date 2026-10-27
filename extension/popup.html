@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #0f172a; margin: 0; width: 420px; min-height: 260px; background: #f8fafc; }
+  header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+  header img { width: 26px; height: 26px; }
+  .gear { background: none; color: #64748b; font-size: 18px; padding: 2px 6px; }
+  .gear:hover { background: #f1f5f9; color: #0f172a; }
+  header b { font-size: 15px; }
+  .dot { margin-left: auto; font-size: 12px; color: #64748b; }
+  .dot::before { content: "●"; margin-right: 4px; color: #cbd5e1; }
+  .dot.on::before { color: #10b981; }
+  section { padding: 12px 16px; }
+  h3 { margin: 4px 0 6px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+  .media { background: #fff; border-radius: 8px; margin: 8px 0; padding: 10px 12px; display: flex; gap: 8px; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.05); border: 1px solid #f1f5f9; }
+  .media div { flex: 1; min-width: 0; }
+  .media small { display: block; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; font-weight: 500; }
+  button:hover { background: #1d4ed8; }
+  .empty { color: #64748b; }
+  .size { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b; }
+  .size .seg { display: flex; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+  .size .seg button { background: #fff; color: #0f172a; border-radius: 0; padding: 3px 12px; border-right: 1px solid #cbd5e1; }
+  .size .seg button:last-child { border-right: 0; }
+  .size .seg button:hover { background: #eff6ff; }
+  .size .seg button.on { background: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="">
+    <b>Mo Download Manager (MDM)</b>
+    <span class="dot" id="status">checking…</span>
+    <button class="gear" id="settings" title="Settings">⚙</button>
+  </header>
+  <div class="size">
+    <span>Download button size</span>
+    <div class="seg" id="sizes">
+      <button data-size="small">Small</button>
+      <button data-size="normal">Normal</button>
+      <button data-size="large">Large</button>
+    </div>
+  </div>
+  <section>
+    <h3>Media on this page</h3>
+    <div id="media"><div class="empty">Nothing detected yet. Start playing the video.</div></div>
+  </section>
+  <script src="popup.js"></script>
+</body>
+</html>
