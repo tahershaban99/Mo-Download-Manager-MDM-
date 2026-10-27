@@ -1,0 +1,71 @@
+name: Release Build and Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build MDM and Publish Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build Application and Installer
+        shell: powershell
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          .\build-windows.ps1 -NonInteractive
+
+      - name: Verify Build Artifacts
+        shell: powershell
+        run: |
+          if (-not (Test-Path "dist\MDM-Setup.exe")) {
+            Write-Error "MDM-Setup.exe not found!"
+            exit 1
+          }
+          if (-not (Test-Path "dist\version.json")) {
+            Write-Error "version.json not found!"
+            exit 1
+          }
+          Write-Host "Generated Artifacts:"
+          Get-Item dist\MDM-Setup.exe, dist\version.json | Format-Table Name, Length, LastWriteTime
+          Write-Host "version.json content:"
+          Get-Content dist\version.json
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mo Download Manager (MDM) ${{ github.ref_name }}
+          body: |
+            ## 🚀 Mo Download Manager (MDM) ${{ github.ref_name }}
+            
+            ### 📦 التحميل المباشر:
+            * **[MDM-Setup.exe](https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/${{ github.ref_name }}/MDM-Setup.exe)**
+            
+            ---
+            * تم البناء والتوقيع التشفيري تلقائياً بواسطة GitHub Actions.
+          files: |
+            dist/MDM-Setup.exe
+            dist/version.json
+          draft: false
+          prerelease: false

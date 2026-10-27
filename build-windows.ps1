@@ -292,7 +292,18 @@ if ($iscc) {
         # version.json: the program reads it from the latest GitHub release
         # to update itself (version + SHA-256 of the installer)
         $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
-        $json = "{`n  ""version"": ""$version"",`n  ""url"": ""https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v$version/MDM-Setup.exe"",`n  ""sha256"": ""$hash""`n}`n"
+        $sig = ""
+        if ($env:UPDATE_SIGNING_KEY) {
+            $sigOutput = cargo run -p swiftget-engine --example sign_update -- $version $hash 2>$null
+            if ($sigOutput) {
+                $sig = ($sigOutput | Select-Object -Last 1).Trim()
+            }
+        }
+        if ($sig) {
+            $json = "{`n  ""version"": ""$version"",`n  ""url"": ""https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v$version/MDM-Setup.exe"",`n  ""sha256"": ""$hash"",`n  ""sig"": ""$sig""`n}`n"
+        } else {
+            $json = "{`n  ""version"": ""$version"",`n  ""url"": ""https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v$version/MDM-Setup.exe"",`n  ""sha256"": ""$hash""`n}`n"
+        }
         [IO.File]::WriteAllText((Join-Path $dist "version.json"), $json)
     }
     else {
