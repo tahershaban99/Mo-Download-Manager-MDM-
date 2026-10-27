@@ -292,7 +292,7 @@ if ($iscc) {
         # version.json: the program reads it from the latest GitHub release
         # to update itself (version + SHA-256 of the installer)
         $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
-        $json = "{`n  ""version"": ""$version"",`n  ""url"": ""https://github.com/tahershaban99/mo-download-manager/releases/download/v$version/MDM-Setup.exe"",`n  ""sha256"": ""$hash""`n}`n"
+        $json = "{`n  ""version"": ""$version"",`n  ""url"": ""https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v$version/MDM-Setup.exe"",`n  ""sha256"": ""$hash""`n}`n"
         [IO.File]::WriteAllText((Join-Path $dist "version.json"), $json)
     }
     else {

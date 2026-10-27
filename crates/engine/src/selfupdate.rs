@@ -19,7 +19,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-pub const REPO: &str = "tahershaban99/mo-download-manager";
+pub const REPO: &str = "tahershaban99/Mo-Download-Manager-MDM-";
 pub const SETUP_NAME: &str = "MDM-Setup.exe";
 
 pub fn version_url() -> String {
