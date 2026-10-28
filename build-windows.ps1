@@ -219,15 +219,11 @@ $redist = Join-Path $cache "redist"
 New-Item -ItemType Directory -Force $redist | Out-Null
 if (Test-Path "$cache\vc_redist.x64.exe") { Copy-Item "$cache\vc_redist.x64.exe" $redist -Force }
 Copy-Item "THIRD-PARTY-NOTICES.txt" $stage -Force
-# the Firefox add-on signed by Mozilla for this version (stays in Firefox for good)
-$extVersion = (Get-Content (Join-Path $PSScriptRoot "extension\manifest.firefox.json") -Raw | ConvertFrom-Json).version
-$signedXpi = Join-Path $PSScriptRoot "extension-signed\mdm-firefox-$extVersion.xpi"
-if (-not (Test-Path $signedXpi)) {
-    $found = Get-ChildItem (Join-Path $PSScriptRoot "extension-signed") -Filter "mdm-firefox-*.xpi" -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($found) { $signedXpi = $found.FullName }
-}
-if ($signedXpi -and (Test-Path $signedXpi)) { Copy-Item $signedXpi (Join-Path $stage "mdm-firefox.xpi") -Force }
+# Firefox add-on (.xpi): Package directly from extension-firefox (clean MDM manifest & icons)
+$targetXpi = Join-Path $stage "mdm-firefox.xpi"
+if (Test-Path $targetXpi) { Remove-Item -Force $targetXpi }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $stage "extension-firefox"), $targetXpi)
 foreach ($f in @("ffmpeg.exe", "yt-dlp.exe", "ffmpeg-version.txt", "ffmpeg-LICENSE.txt")) {
     if (Test-Path "$cache\$f") { Copy-Item "$cache\$f" $tools -Force }
 }
@@ -294,9 +290,12 @@ if ($iscc) {
         $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
         $sig = ""
         if ($env:UPDATE_SIGNING_KEY) {
-            $sigOutput = cargo run -p swiftget-engine --example sign_update -- $version $hash 2>$null
+            $prevEAP = $ErrorActionPreference
+            $ErrorActionPreference = "SilentlyContinue"
+            $sigOutput = cargo run --quiet -p swiftget-engine --example sign_update -- $version $hash 2>&1
+            $ErrorActionPreference = $prevEAP
             if ($sigOutput) {
-                $sig = ($sigOutput | Select-Object -Last 1).Trim()
+                $sig = ($sigOutput | Where-Object { $_ -match '^[0-9a-fA-F]{128}$' } | Select-Object -Last 1).Trim()
             }
         }
         if ($sig) {

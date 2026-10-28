@@ -994,7 +994,7 @@ fn multi_action(ui: &Ui, ids: &[u64], action: &str) {
 fn about() {
     ABOUT.with(|a| {
         if let Some(d) = a.borrow().as_ref().and_then(|w| w.upgrade()) {
-            d.set_version("2.0".into());
+            d.set_version(env!("CARGO_PKG_VERSION").into());
             open_window!(d);
         }
     });
