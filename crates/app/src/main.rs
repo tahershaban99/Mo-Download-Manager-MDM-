@@ -15,6 +15,7 @@ mod options;
 mod playlist;
 mod scheduler;
 mod sound;
+mod torrent_ui;
 mod tray;
 mod update;
 mod winfx;
@@ -140,6 +141,8 @@ pub(crate) struct Ui {
     sel: Rc<RefCell<Selection>>,
     playlist: Weak<PlaylistDialog>,
     playlist_rows: Rc<VecModel<LinkRow>>,
+    torrent: Weak<TorrentDialog>,
+    torrent_rows: Rc<VecModel<LinkRow>>,
     browsers: Weak<BrowserDialog>,
     updater: Weak<UpdateDialog>,
     /// the download list's columns (order + widths) as the header shows them
@@ -198,6 +201,7 @@ fn main() -> anyhow::Result<()> {
     let tips = TipDialog::new()?;
     let refresh_dlg = RefreshDialog::new()?;
     let playlist_dlg = PlaylistDialog::new()?;
+    let torrent_dlg = TorrentDialog::new()?;
     let browsers_dlg = BrowserDialog::new()?;
     let updater_dlg = UpdateDialog::new()?;
     let about_dlg = AboutDialog::new()?;
@@ -253,6 +257,8 @@ fn main() -> anyhow::Result<()> {
         sel: Rc::new(RefCell::new(Selection::default())),
         playlist: playlist_dlg.as_weak(),
         playlist_rows: Rc::new(VecModel::default()),
+        torrent: torrent_dlg.as_weak(),
+        torrent_rows: Rc::new(VecModel::default()),
         browsers: browsers_dlg.as_weak(),
         updater: updater_dlg.as_weak(),
         columns_model: Rc::new(VecModel::default()),
@@ -295,6 +301,7 @@ fn main() -> anyhow::Result<()> {
     grab::wire(&ui);
     extra::wire(&ui);
     playlist::wire(&ui);
+    torrent_ui::wire(&ui);
     browser::wire(&ui);
 
     // ------------------------------------------------------------ browser + clipboard
@@ -333,13 +340,24 @@ fn main() -> anyhow::Result<()> {
     }
     {
         let enabled_mgr = mgr.clone();
+        let types_mgr = mgr.clone();
         let ctx = ctx.clone();
         clipboard::spawn(
             move || enabled_mgr.settings().clipboard_monitor,
+            move || {
+                types_mgr
+                    .settings()
+                    .capture_exts
+                    .split_whitespace()
+                    .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
+                    .filter(|e| !e.is_empty() && !e.contains('*'))
+                    .collect()
+            },
             move |url| {
                 let ctx = ctx.clone();
                 let _ = slint::invoke_from_event_loop(move || {
-                    if ctx.mgr.settings().auto_start_clipboard {
+                    // a torrent always asks first (it also shares with others)
+                    if ctx.mgr.settings().auto_start_clipboard && !swiftget_engine::torrent::is_magnet(&url) {
                         if ctx.mgr.find_url(&url).is_none() {
                             ctx.mgr.add(NewDownload { url, start: true, ..Default::default() });
                         }
@@ -864,6 +882,10 @@ fn wire_main(ui: &Ui) {
     }
     {
         let ui = ui.clone();
+        main.on_torrent(move || torrent_ui::open(&ui, None));
+    }
+    {
+        let ui = ui.clone();
         main.on_browsers(move || browser::open(&ui));
     }
     let (tools_client, tools_rt, tools_dir) = (mgr.client(), ui.ctx.rt.clone(), default_data_dir());
@@ -1115,6 +1137,11 @@ fn handle_api(ui: &Ui, event: api::ApiEvent) {
             if let Some(list) = &req.headers {
                 swiftget_engine::ytdlp::apply_headers(&mut headers, list);
             }
+            // a torrent's magnet link from a page: the torrent window asks first
+            if swiftget_engine::torrent::is_magnet(&req.url) {
+                torrent_ui::open_source(&req.url);
+                return;
+            }
             // "Refresh download address": this is the new link we waited for
             if let Some(id) = ui.refresh_id.get() {
                 if req.audio_url.is_none() {
@@ -1161,6 +1188,12 @@ fn wire_add(ui: &Ui) {
                 // another address: the download started for the old one stops
                 if url != ctx.add_state.lock().unwrap().origin_url {
                     cancel_early(&ctx);
+                }
+                if swiftget_engine::torrent::is_magnet(&url) {
+                    // typed / pasted a magnet link: that is the torrent window's job
+                    let _ = d.hide();
+                    torrent_ui::open_source(&url);
+                    return;
                 }
                 if !url.is_empty() {
                     start_probe(&ctx, url);
@@ -1414,7 +1447,7 @@ fn wire_complete(ui: &Ui) {
         let ui = ui.clone();
         complete.on_open_file(move || {
             if let Some(v) = ui.complete_id.get().and_then(|i| ui.ctx.mgr.get(i)) {
-                let _ = open::that(&v.save_path);
+                open_download(&v.save_path);
             }
             close_complete(&ui);
         });
@@ -1531,6 +1564,7 @@ pub(crate) fn kind_for(name: &str) -> &'static str {
         "txt" | "md" | "log" | "json" | "xml" => "text",
         "exe" | "msi" | "msix" | "appx" | "bat" | "jar" | "deb" | "rpm" => "exe",
         "apk" | "xapk" => "apk",
+        "torrent" => "torrent",
         "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "svg" | "tif" | "tiff" | "heic" | "ico" | "psd" => "image",
         _ => "general",
     }
@@ -1606,6 +1640,10 @@ pub(crate) fn set_language(ui: &Ui, lang: &str) {
         m.set_language(lang.into());
     }
     refresh(ui);
+}
+
+pub(crate) fn change_language(ui: &Ui, lang: &str) {
+    set_language(ui, lang);
 }
 
 /// Fonts of Options > Appearance > Font ("" = Windows' own).
@@ -1692,6 +1730,7 @@ pub(crate) fn apply_look(ui: &Ui, look: &Look) {
         ui.tips,
         ui.refresh_dlg,
         ui.playlist,
+        ui.torrent,
         ui.browsers,
         ui.updater
     );
@@ -1824,6 +1863,11 @@ fn show_name_in_dialog(ctx: &Ctx, d: &AddDialog, name: &str, url: &str) -> Strin
 }
 
 pub(crate) fn open_add_dialog(ctx: &Ctx, url: String, headers: RequestHeaders, name_hint: Option<String>, extra: VideoExtra) {
+    // a magnet link: the torrent window
+    if swiftget_engine::torrent::is_magnet(&url) {
+        torrent_ui::open_source(&url);
+        return;
+    }
     let Some(d) = ctx.add.upgrade() else { return };
     let s = ctx.mgr.settings();
     if d.window().is_visible() {
@@ -2066,6 +2110,7 @@ fn confirm_add(ui: &Ui, start: bool) {
             pick_quality: None,
             early: false,
             start,
+            torrent_select: None,
         }
     };
     let _ = d.hide();
@@ -2180,7 +2225,7 @@ fn row_action(ui: &Ui, id: u64, action: &str) {
     let Some(v) = ui.ctx.mgr.get(id) else { return };
     match action {
         "open" => {
-            let _ = open::that(&v.save_path);
+            open_download(&v.save_path);
         }
         "folder" => reveal_in_folder(&v),
         "openwith" => open_with(&v.save_path),
@@ -2392,6 +2437,14 @@ pub(crate) fn fmt_time(t: chrono::DateTime<chrono::Utc>) -> String {
     t.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()
 }
 
+pub(crate) fn open_download(path: &std::path::Path) {
+    if path.extension().map(|e| e.eq_ignore_ascii_case("torrent")).unwrap_or(false) && path.is_file() {
+        torrent_ui::open_source(&path.display().to_string());
+    } else {
+        let _ = open::that(path);
+    }
+}
+
 fn row_of(v: &DownloadView, sel: bool) -> DownloadRow {
     let pct = v.progress();
     let size = match v.total_size {
@@ -2400,6 +2453,8 @@ fn row_of(v: &DownloadView, sel: bool) -> DownloadRow {
         None => String::new(),
     };
     let status = match v.status {
+        _ if v.waiting => t("Waiting for connection…"),
+        Status::Downloading if v.kind == DownloadKind::Torrent && v.total_size.is_none() => t("Getting the file list…"),
         Status::Downloading | Status::Paused if v.total_size.is_some() => format!("{:.2}%", pct * 100.0),
         Status::Downloading if v.parts_total > 0 => tf("{}/{} parts", &[&v.parts_done, &v.parts_total]),
         Status::Downloading => fmt_size(v.downloaded),
@@ -2418,12 +2473,14 @@ fn row_of(v: &DownloadView, sel: bool) -> DownloadRow {
         (_, Some(d), _) => d.clone(),
         (_, _, DownloadKind::Dash) => tf("{}: video + audio", &[&t(&v.category)]),
         (_, _, DownloadKind::Hls) => tf("{}: stream", &[&t(&v.category)]),
+        (_, _, DownloadKind::Torrent) if v.status.is_running() => tf("Torrent: {} peers", &[&v.active_connections]),
+        (_, _, DownloadKind::Torrent) => t("Torrent"),
         _ => t(&v.category),
     };
     DownloadRow {
         id: v.id as i32,
         name: v.file_name.clone().into(),
-        kind: kind_for(&v.file_name).into(),
+        kind: if v.kind == DownloadKind::Torrent { "torrent" } else { kind_for(&v.file_name) }.into(),
         category: v.category.clone().into(),
         queue: v.queue.map(|q| q.to_string()).unwrap_or_default().into(),
         size: size.into(),
@@ -2754,10 +2811,11 @@ fn taskbar_state(v: &DownloadView) -> winfx::TaskbarProgress {
 fn fill_details(d: &DetailsDialog, model: &VecModel<SegView>, v: &DownloadView) {
     let pct = v.progress();
     d.set_name(v.file_name.clone().into());
-    d.set_kind(kind_for(&v.file_name).into());
+    d.set_kind(if v.kind == DownloadKind::Torrent { "torrent" } else { kind_for(&v.file_name) }.into());
     d.set_percent(format!("{:.0}%", pct * 100.0).into());
     d.set_url(v.url.clone().into());
     let status = match v.status {
+        _ if v.waiting => t("No internet connection — it will continue by itself when it is back."),
         Status::Downloading => t("Receiving data…"),
         Status::Assembling => t("Joining the parts…"),
         Status::Failed => t("Error"),

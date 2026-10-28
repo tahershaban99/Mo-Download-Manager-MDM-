@@ -6,13 +6,12 @@
 //! * the progress of a download on its window's taskbar button
 //! * dragging a finished file out of the list onto the desktop / a folder
 
-use std::cell::RefCell;
-use std::collections::HashMap;
 use slint::ComponentHandle;
+use std::cell::Cell;
 
 thread_local! {
-    // (window handle -> percent) applied last
-    static APPLIED: RefCell<HashMap<isize, u32>> = RefCell::new(HashMap::new());
+    // (window handle, percent) applied last
+    static APPLIED: Cell<(isize, u32)> = const { Cell::new((0, 100)) };
 }
 
 /// The Win32 handle of a shown window.
@@ -27,7 +26,8 @@ fn hwnd_of(w: &slint::Window) -> Option<isize> {
     }
 }
 
-/// Make `w` `pct` % solid (50..=100).
+/// Make `w` `pct` % solid (50..=100). Called again every second for the main
+/// window: it does nothing when nothing changed.
 pub(crate) fn set_opacity(w: &slint::Window, pct: u32) {
     let pct = pct.clamp(50, 100);
     #[cfg(windows)]
@@ -42,8 +42,8 @@ pub(crate) fn set_opacity(w: &slint::Window, pct: u32) {
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             let layered = ex & WS_EX_LAYERED as isize != 0;
-            let prev = APPLIED.with(|a| a.borrow().get(&id).copied());
-            if prev == Some(pct) && layered == (pct < 100) {
+            // the window may have got its style back from the toolkit
+            if APPLIED.with(|a| a.get()) == (id, pct) && layered == (pct < 100) {
                 return;
             }
             if pct >= 100 {
@@ -57,11 +57,12 @@ pub(crate) fn set_opacity(w: &slint::Window, pct: u32) {
                 SetLayeredWindowAttributes(hwnd, 0, (pct * 255 / 100) as u8, LWA_ALPHA);
             }
         }
-        APPLIED.with(|a| a.borrow_mut().insert(id, pct));
+        APPLIED.with(|a| a.set((id, pct)));
     }
     #[cfg(not(windows))]
     {
-        let _ = (w, pct);
+        let _ = w;
+        APPLIED.with(|a| a.set((0, pct)));
     }
 }
 
@@ -84,7 +85,12 @@ fn place_now(w: &slint::Window, maximizable: bool) -> bool {
 fn place_winit(win: &slint::winit_030::winit::window::Window, maximizable: bool) {
     use slint::winit_030::winit;
     use winit::window::WindowButtons;
-    if maximizable {
+    if !win.is_decorated() {
+        // a window drawn without the Windows frame (the progress window):
+        // changing its buttons gives it back a hidden Windows title bar on
+        // Windows 10, and everything drawn then answers the mouse about one
+        // title bar higher than it shows. Only its place is set.
+    } else if maximizable {
         // the main window: its maximize button (full screen)
         win.set_resizable(true);
         win.set_enabled_buttons(WindowButtons::all());
@@ -279,6 +285,99 @@ pub(crate) fn drag_file_out(w: &slint::Window, path: &std::path::Path) {
     {
         let _ = (w, path);
     }
+}
+
+/// Windows drawn without the Windows frame (their own title bar): move the
+/// window while the mouse button is held on the title.
+#[cfg(windows)]
+pub(crate) fn drag_window(w: &slint::Window) {
+    use slint::winit_030::{winit, WinitWindowAccessor};
+    w.with_winit_window(|win: &winit::window::Window| {
+        let _ = win.drag_window();
+    });
+}
+
+/// ...and make it bigger / smaller from its bottom right corner.
+#[cfg(windows)]
+pub(crate) fn drag_resize_window(w: &slint::Window) {
+    use slint::winit_030::{winit, WinitWindowAccessor};
+    w.with_winit_window(|win: &winit::window::Window| {
+        let _ = win.drag_resize_window(winit::window::ResizeDirection::SouthEast);
+    });
+}
+
+#[cfg(not(windows))]
+pub(crate) fn drag_window(_w: &slint::Window) {}
+
+#[cfg(not(windows))]
+pub(crate) fn drag_resize_window(_w: &slint::Window) {}
+
+/// A file / folder picker that belongs to `w`: it stays on top of it and
+/// `w` waits for it.
+#[cfg(windows)]
+pub(crate) fn on_top_of(dlg: rfd::FileDialog, w: &slint::Window) -> rfd::FileDialog {
+    dlg.set_parent(&w.window_handle())
+}
+
+#[cfg(not(windows))]
+pub(crate) fn on_top_of(dlg: rfd::FileDialog, _w: &slint::Window) -> rfd::FileDialog {
+    dlg
+}
+
+/// The window of ours the user is working in (in front), if any.
+#[cfg(windows)]
+fn own_front_window() -> Option<isize> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    // SAFETY: plain queries about the window in front; `pid` is a local
+    let (hwnd, pid) = unsafe {
+        let h = GetForegroundWindow();
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(h, &mut pid);
+        (h, pid)
+    };
+    (!hwnd.is_null() && pid == std::process::id()).then_some(hwnd as isize)
+}
+
+#[cfg(windows)]
+struct OwnWindow(isize);
+
+#[cfg(windows)]
+impl raw_window_handle::HasWindowHandle for OwnWindow {
+    fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        use raw_window_handle::{HandleError, RawWindowHandle, Win32WindowHandle, WindowHandle};
+        let raw = Win32WindowHandle::new(std::num::NonZeroIsize::new(self.0).ok_or(HandleError::Unavailable)?);
+        // SAFETY: the handle is of a window of ours that is open now; the
+        // message box using it is shown and closed before we go on
+        Ok(unsafe { WindowHandle::borrow_raw(RawWindowHandle::Win32(raw)) })
+    }
+}
+
+#[cfg(windows)]
+impl raw_window_handle::HasDisplayHandle for OwnWindow {
+    fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        Ok(raw_window_handle::DisplayHandle::windows())
+    }
+}
+
+/// A message box that belongs to the window in front: it opens on top of
+/// it (never hidden behind, which looked like the program had frozen).
+pub(crate) fn msg_box() -> rfd::MessageDialog {
+    let d = rfd::MessageDialog::new();
+    #[cfg(windows)]
+    if let Some(h) = own_front_window() {
+        return d.set_parent(&OwnWindow(h));
+    }
+    d
+}
+
+/// The same for file / folder pickers.
+pub(crate) fn file_box() -> rfd::FileDialog {
+    let d = rfd::FileDialog::new();
+    #[cfg(windows)]
+    if let Some(h) = own_front_window() {
+        return d.set_parent(&OwnWindow(h));
+    }
+    d
 }
 
 #[cfg(test)]

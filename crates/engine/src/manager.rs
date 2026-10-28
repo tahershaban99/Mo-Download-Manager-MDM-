@@ -10,6 +10,7 @@ use crate::limiter::SpeedLimiter;
 use crate::model::*;
 use crate::mux;
 use crate::ytdlp;
+use crate::torrent;
 use crate::segments;
 use crate::store;
 use crate::system;
@@ -87,10 +88,13 @@ pub struct Manager {
     proxy: Mutex<ProxyConfig>,
     rt: Handle,
     data_dir: PathBuf,
+    /// the hidden torrent program (started when the first torrent runs)
+    torrents: Arc<torrent::Aria2>,
 }
 
 /// Default place for settings.json and downloads.json
-/// (%APPDATA%\Mohamed\MDM\data on Windows).
+/// (%APPDATA%\Ezoo\EzooDownload\data on Windows). The list and settings of
+/// the earlier "SwiftGet" name are carried over the first time.
 pub fn default_data_dir() -> PathBuf {
     let dir = directories::ProjectDirs::from("com", "Mohamed", "MDM")
         .map(|p| p.data_dir().to_path_buf())
@@ -164,6 +168,7 @@ impl Manager {
             shared,
             proxy: Mutex::new(proxy),
             rt: rt.clone(),
+            torrents: Arc::new(torrent::Aria2::new(&data_dir.join("torrents"))),
             data_dir,
         });
 
@@ -233,7 +238,25 @@ impl Manager {
             .or_else(|| probe.as_ref().map(|p| p.file_name.clone()))
             .or_else(|| filename::from_url(&req.url).map(|n| filename::sanitize(&n)))
             .unwrap_or_else(|| "download".into());
-        let category = settings.category_of(&wanted, &req.url);
+        // torrents: the name they share under, the category of their biggest file
+        let is_torrent = torrent::is_torrent_source(&req.url);
+        let torrent_info = (is_torrent && !torrent::is_magnet(&req.url))
+            .then(|| std::fs::read(&req.url).ok().and_then(|d| torrent::parse_torrent(&d).ok()))
+            .flatten();
+        let wanted = if is_torrent && req.file_name.as_deref().map(|s| s.trim().is_empty()).unwrap_or(true) {
+            torrent_info
+                .as_ref()
+                .map(|i| i.name.clone())
+                .or_else(|| torrent::magnet_name(&req.url))
+                .map(|n| filename::sanitize(&n))
+                .unwrap_or_else(|| "torrent".into())
+        } else {
+            wanted
+        };
+        let category = match torrent_info.as_ref().and_then(|i| i.files.iter().max_by_key(|f| f.size)) {
+            Some(big) => settings.category_of(&big.path, ""),
+            None => settings.category_of(&wanted, &req.url),
+        };
         let queue_folder = req
             .queue
             .and_then(|q| settings.queue(q))
@@ -248,7 +271,9 @@ impl Manager {
         let _ = std::fs::create_dir_all(&dir);
 
         let audio_url = req.audio_url.clone().filter(|u| !u.trim().is_empty());
-        let kind = if audio_url.is_some() {
+        let kind = if is_torrent {
+            DownloadKind::Torrent
+        } else if audio_url.is_some() {
             DownloadKind::Dash
         } else {
             probe.as_ref().map(|p| p.kind).unwrap_or_else(|| {
@@ -261,19 +286,32 @@ impl Manager {
         };
 
         let mut inner = self.inner.lock().unwrap();
-        let file_name = free_name(&inner, &dir, &wanted);
+        // a torrent keeps its own name: that is the folder / file it makes
+        let file_name = if is_torrent { wanted.clone() } else { free_name(&inner, &dir, &wanted) };
         let id = inner.next_id;
         inner.next_id += 1;
+        // our own copy of the .torrent file (the one given may be deleted)
+        let mut url = req.url.clone();
+        if is_torrent && !torrent::is_magnet(&url) {
+            let keep = self.data_dir.join("torrents").join(format!("{id}.torrent"));
+            if std::fs::create_dir_all(keep.parent().unwrap_or(&self.data_dir)).is_ok() && std::fs::copy(&url, &keep).is_ok() {
+                url = keep.to_string_lossy().into_owned();
+            }
+        }
         let early = req.early;
         let rec = DownloadRecord {
             id,
-            url: req.url.clone(),
+            url,
             final_url: probe.as_ref().map(|p| p.final_url.clone()),
             file_name,
             save_dir: dir,
             kind,
             // for Dash the real total (video + audio) is known once it starts
-            total_size: if kind == DownloadKind::Dash { None } else { probe.as_ref().and_then(|p| p.total_size) },
+            total_size: match kind {
+                DownloadKind::Dash => None,
+                DownloadKind::Torrent => torrent_info.as_ref().map(|i| i.total),
+                _ => probe.as_ref().and_then(|p| p.total_size),
+            },
             resumable: probe.as_ref().map(|p| p.resumable).unwrap_or(false),
             segments: Vec::new(),
             audio_url,
@@ -306,6 +344,8 @@ impl Manager {
             retry_count: 0,
             pick_quality: req.pick_quality.clone(),
             work_stem: None,
+            torrent_select: req.torrent_select.clone().filter(|s| !s.trim().is_empty()),
+            torrent_files: Vec::new(),
         };
         let mut rec = rec;
         if early {
@@ -403,13 +443,20 @@ impl Manager {
             t.cancel();
         }
         let rec = entry.rec;
+        let data_dir = self.data_dir.clone();
         self.rt.spawn(async move {
             // give running connections a moment to close their file handles
             tokio::time::sleep(Duration::from_millis(800)).await;
             for _ in 0..5 {
                 let mut ok = remove_temp_files(&rec);
-                if delete_file && rec.status == Status::Completed && rec.target_path().exists() {
+                if delete_file && rec.status == Status::Completed && rec.kind == DownloadKind::Torrent {
+                    ok &= remove_torrent_data(&rec);
+                } else if delete_file && rec.status == Status::Completed && rec.target_path().exists() {
                     ok &= std::fs::remove_file(rec.target_path()).is_ok();
+                }
+                // our copy of its .torrent file
+                if rec.kind == DownloadKind::Torrent && rec.url.ends_with(".torrent") && Path::new(&rec.url).starts_with(&data_dir) {
+                    let _ = std::fs::remove_file(&rec.url);
                 }
                 if ok {
                     break;
@@ -494,12 +541,16 @@ impl Manager {
 
     /// Move / rename a finished file ("Save as" for downloads that are done).
     pub fn move_file(&self, id: DownloadId, new_path: &Path) -> anyhow::Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        let e = inner.entries.get_mut(&id).ok_or_else(|| anyhow!("download not found"))?;
-        if e.rec.status != Status::Completed {
-            anyhow::bail!("only finished downloads can be moved");
-        }
-        let from = e.rec.target_path();
+        // the list is not held while the file moves: a copy to another disk
+        // can take minutes and everything else must go on meanwhile
+        let from = {
+            let inner = self.inner.lock().unwrap();
+            let e = inner.entries.get(&id).ok_or_else(|| anyhow!("download not found"))?;
+            if e.rec.status != Status::Completed {
+                anyhow::bail!("only finished downloads can be moved");
+            }
+            e.rec.target_path()
+        };
         if let Some(dir) = new_path.parent() {
             std::fs::create_dir_all(dir)?;
         }
@@ -508,12 +559,14 @@ impl Manager {
             std::fs::copy(&from, new_path)?;
             std::fs::remove_file(&from)?;
         }
-        e.rec.save_dir = new_path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-        e.rec.file_name = new_path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| e.rec.file_name.clone());
-        e.rec.category = self.settings.read().unwrap().category_of(&e.rec.file_name, &e.rec.url);
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(e) = inner.entries.get_mut(&id) {
+            e.rec.save_dir = new_path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+            if let Some(n) = new_path.file_name() {
+                e.rec.file_name = n.to_string_lossy().into_owned();
+            }
+            e.rec.category = self.settings.read().unwrap().category_of(&e.rec.file_name, &e.rec.url);
+        }
         inner.dirty = true;
         Ok(())
     }
@@ -770,12 +823,47 @@ impl Manager {
 
     // ---------------------------------------------------------------- queries
 
+    /// Every download, for the list (without the part tables: the list does
+    /// not show them, and copying them several times a second costs).
     pub fn snapshot(&self) -> Vec<DownloadView> {
         let inner = self.inner.lock().unwrap();
-        inner.entries.values().map(make_view).collect()
+        inner.entries.values().map(|e| view_of(e, false)).collect()
     }
 
     /// One download (cheap: used many times a second by progress windows).
+    /// What can be watched / listened to of a download that is still
+    /// running: the part of each file from its start with no gap (players
+    /// stop at the first gap). `None`: nothing yet, or a kind that can't be
+    /// played before it is done (streams joined at the end, torrents).
+    pub fn preview_source(&self, id: DownloadId) -> Option<PreviewSource> {
+        let inner = self.inner.lock().unwrap();
+        let e = inner.entries.get(&id)?;
+        if e.rec.status == Status::Completed {
+            return None;
+        }
+        match e.rec.kind {
+            DownloadKind::Http => {
+                let segs = e.segs.lock().unwrap().clone();
+                let ready = if segs.is_empty() { e.progress.bytes.load(Ordering::Relaxed) } else { ready_from_start(&segs) };
+                let path = e.rec.part_path();
+                (ready > 0 && path.exists()).then_some(PreviewSource::File { path, ready })
+            }
+            // picture and sound come as two files (YouTube): both are needed
+            DownloadKind::Dash => {
+                let (video, audio) = (e.rec.video_part_path(), e.rec.audio_part_path());
+                let video_ready = ready_from_start(&e.segs.lock().unwrap());
+                let audio_ready = ready_from_start(&e.audio_segs.lock().unwrap());
+                (video_ready > 0 && video.exists()).then(|| PreviewSource::Pair {
+                    video,
+                    video_ready,
+                    audio: (audio_ready > 0 && audio.exists()).then_some(audio),
+                    audio_ready,
+                })
+            }
+            DownloadKind::Hls | DownloadKind::Torrent => None,
+        }
+    }
+
     pub fn get(&self, id: DownloadId) -> Option<DownloadView> {
         self.inner.lock().unwrap().entries.get(&id).map(make_view)
     }
@@ -977,7 +1065,27 @@ impl Manager {
     }
 
     async fn run_entry(self: Arc<Self>, id: DownloadId, cancel: CancellationToken) {
-        let result = self.run_download(id, cancel.clone()).await;
+        let progress = self.inner.lock().unwrap().entries.get(&id).map(|e| e.progress.clone());
+        let mut tries = 0u32;
+        let result = loop {
+            let r = self.run_download(id, cancel.clone()).await;
+            // no internet when starting (or the whole transfer broke off):
+            // wait in place and try again until it is back or the user stops it
+            match (&r, &progress) {
+                (Err(e), Some(p)) if !cancel.is_cancelled() && !e.is::<Cancelled>() && http::is_network_error(e) => {
+                    tries += 1;
+                    p.waiting.store(true, Ordering::Relaxed);
+                    tokio::select! {
+                        _ = tokio::time::sleep(http::reconnect_delay(tries)) => {}
+                        _ = cancel.cancelled() => break Err(Cancelled.into()),
+                    }
+                }
+                _ => break r,
+            }
+        };
+        if let Some(p) = &progress {
+            p.waiting.store(false, Ordering::Relaxed);
+        }
         {
             let mut inner = self.inner.lock().unwrap();
             let mut finished = false;
@@ -1081,6 +1189,9 @@ impl Manager {
         if rec.kind == DownloadKind::Dash {
             return self.run_dash(id, rec, segs, audio_segs, progress, limiter, cancel, &settings).await;
         }
+        if rec.kind == DownloadKind::Torrent {
+            return self.run_torrent(id, rec, progress, cancel, &settings).await;
+        }
         self.refresh_source(id, &mut rec, &cancel).await?;
 
         // Fresh look at the server every time: links behind redirects often
@@ -1174,7 +1285,7 @@ impl Manager {
                     max_request: http_download::max_request_for(rec.request_url()),
                     limiter: limiter.clone(),
                 };
-                http_download::run(self.shared.clone(), job, segs, progress, cancel).await?;
+                http_download::run(self.shared.clone(), job, segs, progress.clone(), cancel).await?;
             }
             DownloadKind::Hls => {
                 let job = HlsJob {
@@ -1187,11 +1298,157 @@ impl Manager {
                     retries: settings.retries,
                     limiter: limiter.clone(),
                 };
-                hls::run(self.shared.clone(), job, progress, cancel).await?;
+                hls::run(self.shared.clone(), job, progress.clone(), cancel).await?;
             }
             DownloadKind::Dash => unreachable!("handled by run_dash"),
+            DownloadKind::Torrent => unreachable!("handled by run_torrent"),
+        }
+        if rec.source_key.as_deref() == Some(ytdlp::MP3_KEY) {
+            // "Audio · MP3": the sound is here, now make the MP3 file
+            progress.assembling.store(true, Ordering::Relaxed);
+            let (input, tmp) = (part.clone(), part.with_extension("mp3tmp"));
+            let t2 = tmp.clone();
+            let title = song_title(&rec.file_name);
+            tokio::task::spawn_blocking(move || mux::to_mp3(&input, &t2, ytdlp::MP3_KBPS, Some(&title))).await??;
+            std::fs::rename(&tmp, &part)?;
+        }
+        if rec.kind == DownloadKind::Hls && filename::extension(&rec.file_name) == "ts" && mux::find_ffmpeg().is_some() {
+            // a joined stream: an ordinary MP4 plays everywhere and can be
+            // wound forward; if that fails the .ts file stays as it is
+            progress.assembling.store(true, Ordering::Relaxed);
+            let (input, tmp) = (part.clone(), part.with_extension("mp4tmp"));
+            let t2 = tmp.clone();
+            let made = tokio::task::spawn_blocking(move || mux::ts_to_mp4(&input, &t2)).await.map(|r| r.is_ok()).unwrap_or(false);
+            if made && std::fs::rename(&tmp, &part).is_ok() {
+                let (stem, _) = filename::split_ext(&rec.file_name);
+                let name = filename::unique_name(&rec.save_dir, &format!("{stem}.mp4"));
+                self.update(id, move |x| x.file_name = name);
+            } else {
+                let _ = std::fs::remove_file(&tmp);
+            }
         }
         self.finish_file(id, &rec)
+    }
+
+    /// A torrent: aria2 gets it, we watch and show its progress.
+    async fn run_torrent(
+        self: &Arc<Self>,
+        id: DownloadId,
+        rec: DownloadRecord,
+        progress: Arc<Progress>,
+        cancel: CancellationToken,
+        settings: &Settings,
+    ) -> anyhow::Result<()> {
+        let _ = std::fs::create_dir_all(&rec.save_dir);
+        let target = rec.target_path();
+        let control = rec.save_dir.join(format!("{}.aria2", rec.file_name));
+        let limit_kb = rec.speed_limit_kb.unwrap_or(settings.effective_limit() / 1024);
+        let opts = torrent::AddOptions {
+            dir: rec.save_dir.clone(),
+            select: rec.torrent_select.clone(),
+            seed_minutes: settings.torrent_seed_minutes,
+            download_limit_kb: limit_kb,
+            upload_limit_kb: settings.torrent_upload_kb,
+            // all there already (no notes of aria2 about it): check it
+            check: target.exists() && !control.exists(),
+        };
+        // files that were there before: never removed by us
+        let existed: HashSet<PathBuf> = rec.torrent_data_paths().into_iter().filter(|p| p.exists()).collect();
+        let mut gid = tokio::select! {
+            r = self.torrents.add(&rec.url, &opts) => r?,
+            _ = cancel.cancelled() => return Err(Cancelled.into()),
+        };
+        self.update(id, |x| {
+            if x.status == Status::Connecting {
+                x.status = Status::Downloading;
+            }
+        });
+        let mut named = false;
+        let mut listed = !rec.torrent_files.is_empty();
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(800)) => {}
+                _ = cancel.cancelled() => {
+                    self.torrents.remove(&gid).await;
+                    return Err(Cancelled.into());
+                }
+            }
+            let st = match self.torrents.status(&gid).await {
+                Ok(st) => st,
+                Err(e) => {
+                    self.torrents.remove(&gid).await;
+                    return Err(e.context("the torrent program stopped"));
+                }
+            };
+            // a magnet link found its file list: the torrent goes on under a new id
+            if let Some(next) = st.followed_by.clone() {
+                gid = next;
+                continue;
+            }
+            // the chosen files only: aria2's own total also counts the
+            // pieces they share with files that were left out
+            let files = if st.total > 0 { self.torrents.files(&gid).await.unwrap_or_default() } else { Vec::new() };
+            let chosen: Vec<&torrent::FileState> = files.iter().filter(|f| f.selected).collect();
+            let (total, done) = if chosen.is_empty() {
+                (st.total, st.done)
+            } else {
+                (chosen.iter().map(|f| f.size).sum(), chosen.iter().map(|f| f.done.min(f.size)).sum())
+            };
+            progress.bytes.store(done, Ordering::Relaxed);
+            progress.connections.store(st.connections, Ordering::Relaxed);
+            if !listed && !chosen.is_empty() {
+                // the files it writes, to clean up exactly those later
+                let rel: Vec<String> = chosen
+                    .iter()
+                    .filter_map(|f| f.path.strip_prefix(&rec.save_dir).ok().map(|r| r.to_string_lossy().into_owned()))
+                    .filter(|r| !r.is_empty())
+                    .collect();
+                if !rel.is_empty() {
+                    listed = true;
+                    self.update(id, move |x| x.torrent_files = rel);
+                }
+            }
+            if total > 0 {
+                let name = if named { None } else { st.name.clone().map(|n| filename::sanitize(&n)) };
+                named = named || name.is_some();
+                self.update(id, move |x| {
+                    x.total_size = Some(total);
+                    x.resumable = true;
+                    if let Some(n) = name {
+                        x.file_name = n;
+                    }
+                });
+            }
+            let finished = match st.status.as_str() {
+                "complete" => true,
+                "error" => {
+                    let msg = st.error.unwrap_or_else(|| "the torrent could not be downloaded".into());
+                    self.torrents.remove(&gid).await;
+                    anyhow::bail!("{msg}");
+                }
+                "removed" => anyhow::bail!("the torrent was stopped"),
+                // everything is here and it shares for a while: done for us
+                _ => st.seeding && total > 0 && done >= total,
+            };
+            if finished {
+                // no sharing wanted (or its time is over): aria2 forgets it,
+                // so the same torrent can be added again
+                if st.status == "complete" || settings.torrent_seed_minutes == 0 {
+                    self.torrents.remove(&gid).await;
+                }
+                // the bits of the files that were left out (pieces are shared
+                // between files): not wanted, and not the user's own
+                for f in files.iter().filter(|f| !f.selected) {
+                    if inside(&f.path, &rec.save_dir) && f.path.is_file() && !existed.contains(&f.path) {
+                        let _ = std::fs::remove_file(&f.path);
+                        if let Some(dir) = f.path.parent() {
+                            let _ = std::fs::remove_dir(dir); // only when empty
+                        }
+                    }
+                }
+                return Ok(());
+            }
+        }
     }
 
     /// A playlist video added as its page: ask yt-dlp for its links now and
@@ -1480,8 +1737,11 @@ impl Manager {
                 }
             }
             self.track_quota(&mut inner, now, fresh_bytes);
-            let due = now.duration_since(inner.last_save) > Duration::from_secs(3);
-            if due && (inner.dirty || any_running) {
+            // changes to the list: after 3 s; only progress of running
+            // downloads: every 10 s (resume works from there anyway)
+            let since = now.duration_since(inner.last_save);
+            let due = (inner.dirty && since > Duration::from_secs(3)) || (any_running && since > Duration::from_secs(10));
+            if due {
                 inner.dirty = false;
                 inner.last_save = now;
                 Some(collect_records(&inner))
@@ -1648,10 +1908,77 @@ impl Manager {
     }
 }
 
+/// The name an MP3 file shows: its file name without the quality part.
+fn song_title(file_name: &str) -> String {
+    let (stem, _) = filename::split_ext(file_name);
+    let t = stem.trim();
+    match t.rfind(" [") {
+        Some(i) if t.ends_with(']') => t[..i].trim().to_string(),
+        _ => t.to_string(),
+    }
+}
+
+/// Bytes from the start of a file with no gap.
+fn ready_from_start(segs: &[segments::Segment]) -> u64 {
+    let mut ready = 0u64;
+    let mut sorted: Vec<_> = segs.iter().map(|s| (s.start, s.pos)).collect();
+    sorted.sort();
+    for (start, pos) in sorted {
+        if start > ready {
+            break;
+        }
+        ready = ready.max(pos);
+    }
+    ready
+}
+
+/// What a running download offers to play (see `Manager::preview_source`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum PreviewSource {
+    /// one file that grows
+    File { path: PathBuf, ready: u64 },
+    /// a picture file and a sound file (no sound yet: `audio` is `None`)
+    Pair { video: PathBuf, video_ready: u64, audio: Option<PathBuf>, audio_ready: u64 },
+}
+
+/// `path` is in `dir` (or below it), with no ".." that could lead out.
+fn inside(path: &Path, dir: &Path) -> bool {
+    path.starts_with(dir)
+        && path != dir
+        && !path.components().any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::CurDir))
+}
+
+/// The files of a torrent, then its folders if they are empty now.
+fn remove_torrent_data(rec: &DownloadRecord) -> bool {
+    let mut ok = true;
+    // only inside its own folder: a strange name can't reach anything else
+    let files: Vec<PathBuf> = rec.torrent_data_paths().into_iter().filter(|f| inside(f, &rec.save_dir)).collect();
+    for f in &files {
+        if f.is_file() {
+            ok &= std::fs::remove_file(f).is_ok();
+        }
+    }
+    let top = rec.target_path();
+    if !inside(&top, &rec.save_dir) {
+        return ok;
+    }
+    let mut dirs: Vec<PathBuf> = files.iter().filter_map(|f| f.parent().map(Path::to_path_buf)).filter(|d| d.starts_with(&top)).collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    dirs.dedup();
+    for d in dirs.iter().chain(std::iter::once(&top)) {
+        let _ = std::fs::remove_dir(d); // only when empty
+    }
+    ok
+}
+
 /// Delete every temporary file of a download. Returns false if something
 /// could not be removed (still open), so the caller can retry.
 fn remove_temp_files(rec: &DownloadRecord) -> bool {
     let mut ok = true;
+    if rec.kind == DownloadKind::Torrent && rec.status != Status::Completed {
+        // what an unfinished torrent got so far is its partial data
+        ok &= remove_torrent_data(rec);
+    }
     for p in rec.temp_paths() {
         if p.is_dir() {
             ok &= std::fs::remove_dir_all(&p).is_ok();
@@ -1663,6 +1990,10 @@ fn remove_temp_files(rec: &DownloadRecord) -> bool {
 }
 
 fn make_view(e: &Entry) -> DownloadView {
+    view_of(e, true)
+}
+
+fn view_of(e: &Entry, with_parts: bool) -> DownloadView {
     let bytes = e.progress.bytes.load(Ordering::Relaxed);
     let mut status = e.rec.status;
     if status == Status::Downloading && e.progress.assembling.load(Ordering::Relaxed) {
@@ -1678,7 +2009,7 @@ fn make_view(e: &Entry) -> DownloadView {
         Some(t) if speed > 1.0 => Some((t.saturating_sub(downloaded) as f64 / speed) as u64),
         _ => None,
     };
-    let segments = if status == Status::Completed {
+    let segments = if status == Status::Completed || !with_parts {
         Vec::new()
     } else {
         e.segs.lock().unwrap().iter().map(|s| (s.start, s.pos, s.end, s.active)).collect()
@@ -1697,6 +2028,9 @@ fn make_view(e: &Entry) -> DownloadView {
         speed,
         eta_secs,
         active_connections: e.progress.connections.load(Ordering::Relaxed),
+        waiting: status.is_running()
+            && e.progress.waiting.load(Ordering::Relaxed)
+            && e.progress.connections.load(Ordering::Relaxed) == 0,
         resumable: e.rec.resumable,
         parts_total: e.progress.parts_total.load(Ordering::Relaxed),
         parts_done: e.progress.parts_done.load(Ordering::Relaxed),
@@ -1799,5 +2133,25 @@ mod name_tests {
         assert_eq!(playlist_stem("How to cook rice", "طريقة عمل الأرز"), "طريقة عمل الأرز");
         assert_eq!(playlist_stem("2024 plans", "Plans"), "Plans");
         assert_eq!(playlist_stem("07 - Old", "  "), "07 - Old");
+    }
+}
+
+#[cfg(test)]
+mod inside_tests {
+    use super::{inside, song_title};
+    #[test]
+    fn mp3_titles() {
+        assert_eq!(song_title("My Song [mp3].mp3"), "My Song");
+        assert_eq!(song_title("Live [2024] mix.mp3"), "Live [2024] mix");
+        assert_eq!(song_title("plain.mp3"), "plain");
+    }
+    use std::path::Path;
+    #[test]
+    fn nothing_outside_the_folder() {
+        let d = Path::new("/d/Video");
+        assert!(inside(Path::new("/d/Video/pack/a.bin"), d));
+        assert!(!inside(Path::new("/d/Video/../x.bin"), d));
+        assert!(!inside(Path::new("/d/Video"), d));
+        assert!(!inside(Path::new("/d/Other/a.bin"), d));
     }
 }

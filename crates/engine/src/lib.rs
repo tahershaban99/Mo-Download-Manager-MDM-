@@ -1,4 +1,4 @@
-//! Ezoo Download engine.
+//! Mo Download Manager (MDM) engine.
 //!
 //! * `segments`       – splitting a file between connections (dynamic segmentation)
 //! * `http_download`  – multi-connection downloader with resume and retries
@@ -27,8 +27,9 @@ pub mod selfupdate;
 pub mod store;
 pub mod system;
 pub mod tools;
+pub mod torrent;
 pub mod ytdlp;
 
 pub use config::{AfterDone, Schedule, Settings};
-pub use manager::{default_data_dir, DetailsEdit, Event, Manager};
+pub use manager::{default_data_dir, DetailsEdit, Event, Manager, PreviewSource};
 pub use model::*;

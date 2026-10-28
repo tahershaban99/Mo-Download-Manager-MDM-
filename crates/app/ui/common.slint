@@ -547,6 +547,17 @@ export component Icon inherits Rectangle {
         stroke-width: 1.2px;
         commands: "M 3 8 L 12 8 L 15 11 L 29 11 L 29 27 L 3 27 Z";
     }
+    if root.kind == "torrent": Rectangle {
+        // U-magnet with silver pole tips
+        P {
+            fill: @linear-gradient(180deg, #ef5a50 0%, #c62f27 100%);
+            commands: "M 5 5 L 11 5 L 11 17 A 5 5 0 0 0 21 17 L 21 5 L 27 5 L 27 17 A 11 11 0 0 1 5 17 Z";
+        }
+        P {
+            fill: #e5ecf4;
+            commands: "M 5 5 L 11 5 L 11 10 L 5 10 Z M 21 5 L 27 5 L 27 10 L 21 10 Z";
+        }
+    }
 }
 
 export component G inherits Path {
@@ -571,6 +582,7 @@ export component TypeIcon inherits Rectangle {
         : root.kind == "apk" ? #2e9e5b
         : root.kind == "disc" ? #5b7083
         : root.kind == "image" ? #12a594
+        : root.kind == "torrent" ? #d93025
         : #8a94a0;
     border-radius: self.width * 0.22;
     background: @linear-gradient(180deg, root.base.brighter(25%) 0%, root.base 100%);
@@ -642,6 +654,10 @@ export component TypeIcon inherits Rectangle {
         stroke: white;
         stroke-width: 1.2px;
         commands: "M 5 3 L 9.5 3 L 11.5 5 L 11.5 13 L 5 13 Z";
+    }
+    if root.kind == "torrent": G {
+        fill: white;
+        commands: "M 4 3.5 L 6.5 3.5 L 6.5 8.5 A 1.5 1.5 0 0 0 9.5 8.5 L 9.5 3.5 L 12 3.5 L 12 8.5 A 4 4 0 0 1 4 8.5 Z";
     }
 }
 

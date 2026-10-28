@@ -129,6 +129,8 @@ fn fill(ui: &Ui, d: &SettingsDialog, s: &Settings) {
     d.set_limiter_on(s.speed_limit_on);
     d.set_speed_limit(s.speed_limit_kb.clamp(1, 1_000_000) as i32);
     d.set_limiter_startup(s.limiter_on_startup);
+    d.set_seed_minutes(s.torrent_seed_minutes.min(10080) as i32);
+    d.set_torrent_upload(s.torrent_upload_kb.min(1_000_000) as i32);
     show_lists(ui, d);
 }
 
@@ -223,6 +225,8 @@ fn read(ui: &Ui, d: &SettingsDialog, mut s: Settings) -> Result<Settings, String
     s.speed_limit_on = d.get_limiter_on();
     s.speed_limit_kb = d.get_speed_limit().max(1) as u64;
     s.limiter_on_startup = d.get_limiter_startup();
+    s.torrent_seed_minutes = d.get_seed_minutes().max(0) as u32;
+    s.torrent_upload_kb = d.get_torrent_upload().max(0) as u64;
     Ok(s)
 }
 
@@ -251,7 +255,7 @@ pub(crate) fn wire(ui: &Ui) {
         let ui = ui.clone();
         d.on_browse_bg(move || {
             let Some(d) = ui.settings_dlg.upgrade() else { return };
-            let pick = rfd::FileDialog::new().add_filter(t("Pictures"), &["png", "jpg", "jpeg"]).pick_file();
+            let pick = crate::winfx::file_box().add_filter(t("Pictures"), &["png", "jpg", "jpeg"]).pick_file();
             if let Some(f) = pick {
                 d.set_bg_image(f.display().to_string().into());
                 crate::apply_look(&ui, &look_of(&d));
@@ -261,12 +265,8 @@ pub(crate) fn wire(ui: &Ui) {
     {
         let ui = ui.clone();
         d.on_preview_opacity(move |v| {
-            let pct = v.round() as u32;
             if let Some(m) = ui.ctx.main.upgrade() {
-                crate::winfx::set_opacity(m.window(), pct);
-            }
-            for (_, (pwin, _)) in ui.progress.borrow().iter() {
-                crate::winfx::set_opacity(pwin.window(), pct);
+                crate::winfx::set_opacity(m.window(), v.round() as u32);
             }
         });
     }
@@ -277,22 +277,22 @@ pub(crate) fn wire(ui: &Ui) {
             match which.as_str() {
                 "download" => {
                     let start = PathBuf::from(d.get_download_dir().as_str());
-                    if let Some(dir) = rfd::FileDialog::new().set_directory(start).pick_folder() {
+                    if let Some(dir) = crate::winfx::file_box().set_directory(start).pick_folder() {
                         d.set_download_dir(dir.display().to_string().into());
                     }
                 }
                 "temp" => {
-                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                    if let Some(dir) = crate::winfx::file_box().pick_folder() {
                         d.set_temp_dir(dir.display().to_string().into());
                     }
                 }
                 "virus" => {
-                    if let Some(f) = rfd::FileDialog::new().add_filter("Program", &["exe", "com", "bat", "cmd"]).pick_file() {
+                    if let Some(f) = crate::winfx::file_box().add_filter("Program", &["exe", "com", "bat", "cmd"]).pick_file() {
                         d.set_virus_program(f.display().to_string().into());
                     }
                 }
                 s if s.starts_with("sound:") => {
-                    let mut dlg = rfd::FileDialog::new().add_filter("Sound", &["wav"]);
+                    let mut dlg = crate::winfx::file_box().add_filter("Sound", &["wav"]);
                     if cfg!(windows) {
                         dlg = dlg.set_directory(r"C:\Windows\Media");
                     }
@@ -453,7 +453,7 @@ pub(crate) fn wire(ui: &Ui) {
                     }
                     apply_theme(&ui2, theme);
                     apply_view_settings(&ui2, &view);
-                    set_language(&ui2, crate::i18n::effective(&view.language));
+                    crate::change_language(&ui2, crate::i18n::effective(&view.language));
                     let _ = d.hide();
                     refresh(&ui2);
                     if port_changed {
@@ -472,12 +472,8 @@ pub(crate) fn wire(ui: &Ui) {
                 let _ = d.hide();
             }
             // the sliders only showed it: back to the saved look
-            let op = ui.ctx.mgr.settings().opacity;
             if let Some(m) = ui.ctx.main.upgrade() {
-                crate::winfx::set_opacity(m.window(), op);
-            }
-            for (_, (pwin, _)) in ui.progress.borrow().iter() {
-                crate::winfx::set_opacity(pwin.window(), op);
+                crate::winfx::set_opacity(m.window(), ui.ctx.mgr.settings().opacity);
             }
             crate::apply_look(&ui, &crate::Look::of(&ui.ctx.mgr.settings()));
         });

@@ -215,6 +215,22 @@ if (-not (Test-Path "$cache\yt-dlp.exe")) {
         Write-Host "Could not download yt-dlp now. Mo Download Manager (MDM) gets it by itself later." -ForegroundColor Yellow
     }
 }
+if (-not (Test-Path "$cache\aria2c.exe")) {
+    Step "Downloading aria2 (torrents)"
+    try {
+        $zip = Join-Path $cache "aria2.zip"
+        Invoke-WebRequest "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip" -OutFile $zip
+        if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne "67D015301EEF0B612191212D564C5BB0A14B5B9C4796B76454276A4D28D9B288") { throw "aria2.zip does not match its SHA-256" }
+        $tmp = Join-Path $cache "aria2-tmp"
+        Expand-Archive $zip -DestinationPath $tmp -Force
+        Copy-Item (Get-ChildItem $tmp -Recurse -Filter aria2c.exe | Select-Object -First 1).FullName "$cache\aria2c.exe" -Force
+        Copy-Item (Get-ChildItem $tmp -Recurse -Filter COPYING | Select-Object -First 1).FullName "$cache\aria2-COPYING.txt" -Force
+        Remove-Item $tmp -Recurse -Force
+    }
+    catch {
+        Write-Host "Could not download aria2 now. Mo Download Manager (MDM) gets it by itself later." -ForegroundColor Yellow
+    }
+}
 # Visual C++ runtime: the program already carries it (static CRT, see
 # .cargo\config.toml). Optional: put Microsoft's vc_redist.x64.exe into
 # build-cache yourself and the installer also installs it where it is missing.
@@ -249,7 +265,7 @@ if (Test-Path $signedXpi) {
 } else {
     Copy-Item $amoZip $targetXpi -Force
 }
-foreach ($f in @("ffmpeg.exe", "yt-dlp.exe", "ffmpeg-version.txt", "ffmpeg-LICENSE.txt")) {
+foreach ($f in @("ffmpeg.exe", "yt-dlp.exe", "ffmpeg-version.txt", "ffmpeg-LICENSE.txt", "aria2c.exe", "aria2-COPYING.txt")) {
     if (Test-Path "$cache\$f") { Copy-Item "$cache\$f" $tools -Force }
 }
 

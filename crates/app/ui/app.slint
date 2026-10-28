@@ -6,7 +6,7 @@ import { Button, LineEdit, SpinBox, CheckBox, ComboBox, ListView, TabWidget, Tex
 import { DownloadRow, QueueRow, SegView, Cols, ColDef, CatRow, PairRow, LinkRow, Theme, ThemedWindow, P, Icon, G, TypeIcon, BigTypeIcon, ActionBtn, ToolBtn, ToolSeparator, TreeItem, HeaderCell, Cell, MenuEntry, MenuSep, MenuLabel, Glyph, StatusBadge } from "common.slint";
 export { DownloadRow, QueueRow, SegView, Cols, ColDef, CatRow, PairRow, LinkRow, Theme }
 export { BrowserRow } from "dialogs.slint";
-export { ColumnsDialog, CategoryDialog, FindDialog, PropertiesDialog, DuplicateDialog, CountdownDialog, SchedulerDialog, GrabberDialog, TipDialog, RefreshDialog, SettingsDialog, PlaylistDialog, BrowserDialog, AboutDialog, UpdateDialog } from "dialogs.slint";
+export { ColumnsDialog, CategoryDialog, FindDialog, PropertiesDialog, DuplicateDialog, CountdownDialog, SchedulerDialog, GrabberDialog, TipDialog, RefreshDialog, SettingsDialog, TorrentDialog, PlaylistDialog, BrowserDialog, AboutDialog, UpdateDialog } from "dialogs.slint";
 
 component DownloadItem inherits Rectangle {
     in property <DownloadRow> data;
@@ -689,6 +689,7 @@ export component MainWindow inherits ThemedWindow {
     callback find-next();
     callback grabber();
     callback playlist();
+    callback torrent();
     callback browsers();
     callback tips();
     callback about();
@@ -725,6 +726,12 @@ export component MainWindow inherits ThemedWindow {
                 title: @tr("Download a playlist…");
                 activated => {
                     root.playlist();
+                }
+            }
+            MenuItem {
+                title: @tr("Add a torrent…");
+                activated => {
+                    root.torrent();
                 }
             }
             MenuSeparator { }
@@ -1514,6 +1521,14 @@ export component MainWindow inherits ThemedWindow {
                                 small: root.toolbar-small;
                                 clicked => {
                                     root.playlist();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "torrent";
+                                text: @tr("Torrent");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.torrent();
                                 }
                             }
                             ToolBtn {
