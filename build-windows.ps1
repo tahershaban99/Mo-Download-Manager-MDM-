@@ -219,11 +219,17 @@ $redist = Join-Path $cache "redist"
 New-Item -ItemType Directory -Force $redist | Out-Null
 if (Test-Path "$cache\vc_redist.x64.exe") { Copy-Item "$cache\vc_redist.x64.exe" $redist -Force }
 Copy-Item "THIRD-PARTY-NOTICES.txt" $stage -Force
-# Firefox add-on (.xpi): Package directly from extension-firefox (clean MDM manifest & icons)
+# Firefox add-on (.xpi): If an official signed XPI exists in extension-signed, bundle it directly!
 $targetXpi = Join-Path $stage "mdm-firefox.xpi"
 if (Test-Path $targetXpi) { Remove-Item -Force $targetXpi }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $stage "extension-firefox"), $targetXpi)
+$signedXpi = Join-Path $PSScriptRoot "extension-signed\mdm-firefox.xpi"
+if (Test-Path $signedXpi) {
+    Write-Host "Bundling officially signed Firefox add-on from extension-signed\mdm-firefox.xpi..." -ForegroundColor Green
+    Copy-Item $signedXpi $targetXpi -Force
+} else {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $stage "extension-firefox"), $targetXpi)
+}
 foreach ($f in @("ffmpeg.exe", "yt-dlp.exe", "ffmpeg-version.txt", "ffmpeg-LICENSE.txt")) {
     if (Test-Path "$cache\$f") { Copy-Item "$cache\$f" $tools -Force }
 }
@@ -292,6 +298,7 @@ if ($iscc) {
         if ($env:UPDATE_SIGNING_KEY) {
             $prevEAP = $ErrorActionPreference
             $ErrorActionPreference = "SilentlyContinue"
+            if (Test-Path "$cache\w64devkit\bin") { $env:PATH = "$cache\w64devkit\bin;$env:PATH" }
             $sigOutput = cargo run --quiet -p swiftget-engine --example sign_update -- $version $hash 2>&1
             $ErrorActionPreference = $prevEAP
             if ($sigOutput) {
