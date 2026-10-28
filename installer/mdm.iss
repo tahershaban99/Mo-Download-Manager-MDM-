@@ -14,7 +14,7 @@
   #define Stage "..\build-cache\stage"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.1"
+  #define MyAppVersion "2.0.2"
 #endif
 
 [Setup]
@@ -69,6 +69,7 @@ arabic.InstallingRuntime=جاري تثبيت ملفات النظام المطل�
 
 [Files]
 Source: "{#Stage}\{#MyAppExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Stage}\icon.ico"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#Stage}\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 ; the helpers go into {app}\tools; the app updates them there by itself
 Source: "{#Stage}\tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion skipifsourcedoesntexist
@@ -97,10 +98,10 @@ Type: dirifempty; Name: "{userprograms}\Ezoo Download"
 Type: dirifempty; Name: "{commonprograms}\Ezoo Download"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\{cm:BrowserExtFolder}"; Filename: "{app}\extension"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"; IconFilename: "{app}\icon.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
 ; tells the app the installer already decided about "start with Windows"

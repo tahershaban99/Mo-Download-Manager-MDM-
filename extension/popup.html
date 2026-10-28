@@ -3,29 +3,144 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #0f172a; margin: 0; width: 420px; min-height: 260px; background: #f8fafc; }
-  header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
-  header img { width: 26px; height: 26px; }
-  .gear { background: none; color: #64748b; font-size: 18px; padding: 2px 6px; }
-  .gear:hover { background: #f1f5f9; color: #0f172a; }
-  header b { font-size: 15px; }
-  .dot { margin-left: auto; font-size: 12px; color: #64748b; }
-  .dot::before { content: "●"; margin-right: 4px; color: #cbd5e1; }
-  .dot.on::before { color: #10b981; }
+  * { box-sizing: border-box; }
+  body {
+    font: 13.5px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color: #e2e8f0;
+    margin: 0;
+    width: 420px;
+    min-height: 260px;
+    background: radial-gradient(circle at top right, #0d1f3d 0%, #090d18 65%);
+    scrollbar-width: thin;
+    scrollbar-color: #00d2ff #090d18;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 16px;
+    background: rgba(13, 20, 36, 0.92);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.25);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+  header img { width: 26px; height: 26px; filter: drop-shadow(0 0 6px rgba(0, 210, 255, 0.45)); }
+  .gear {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: #94a3b8;
+    font-size: 16px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    transition: all .15s ease;
+  }
+  .gear:hover {
+    background: rgba(0, 210, 255, 0.14);
+    border-color: rgba(0, 229, 255, 0.5);
+    color: #00f0ff;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+  }
+  header b {
+    font-size: 14.5px;
+    color: #f8fafc;
+    text-shadow: 0 0 10px rgba(0, 180, 255, 0.35);
+    letter-spacing: 0.2px;
+  }
+  .dot { margin-left: auto; font-size: 11.5px; color: #94a3b8; display: inline-flex; align-items: center; }
+  .dot::before { content: "●"; margin-right: 5px; color: #475569; }
+  .dot.on { color: #a7f3d0; }
+  .dot.on::before { color: #00f59b; text-shadow: 0 0 8px #00f59b; }
   section { padding: 12px 16px; }
-  h3 { margin: 4px 0 6px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
-  .media { background: #fff; border-radius: 8px; margin: 8px 0; padding: 10px 12px; display: flex; gap: 8px; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.05); border: 1px solid #f1f5f9; }
-  .media div { flex: 1; min-width: 0; }
-  .media small { display: block; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  button { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; font-weight: 500; }
-  button:hover { background: #1d4ed8; }
-  .empty { color: #64748b; }
-  .size { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b; }
-  .size .seg { display: flex; margin-left: auto; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
-  .size .seg button { background: #fff; color: #0f172a; border-radius: 0; padding: 3px 12px; border-right: 1px solid #cbd5e1; }
+  h3 {
+    margin: 4px 0 8px;
+    font-size: 11px;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  }
+  .media {
+    background: rgba(15, 23, 42, 0.85);
+    border-radius: 9px;
+    margin: 8px 0;
+    padding: 10px 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(0, 229, 255, 0.18);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .media:hover {
+    border-color: rgba(0, 229, 255, 0.45);
+    box-shadow: 0 4px 16px rgba(0, 180, 255, 0.18);
+  }
+  .media div { flex: 1; min-width: 0; font-weight: 600; color: #f1f5f9; }
+  .media small {
+    display: block;
+    font-weight: 400;
+    color: #8ba3c7;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  button {
+    background: linear-gradient(135deg, #004cff 0%, #0088ff 52%, #00e5ff 100%);
+    color: #fff;
+    border: 1px solid rgba(115, 245, 255, 0.65);
+    border-radius: 6px;
+    padding: 5px 13px;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 20, 60, 0.5);
+    box-shadow: 0 2px 10px rgba(0, 110, 255, 0.45), 0 0 8px rgba(0, 229, 255, 0.3);
+    transition: all .16s ease;
+  }
+  button:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 14px rgba(0, 140, 255, 0.7), 0 0 12px rgba(0, 240, 255, 0.6);
+  }
+  button:disabled { opacity: 0.5; cursor: default; filter: none; box-shadow: none; }
+  .empty { color: #64748b; padding: 6px 0; font-size: 13px; }
+  .size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    background: rgba(11, 17, 30, 0.75);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    font-size: 12.5px;
+    color: #94a3b8;
+  }
+  .size .seg {
+    display: flex;
+    margin-left: auto;
+    border: 1px solid rgba(0, 229, 255, 0.28);
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(9, 13, 24, 0.9);
+  }
+  .size .seg button {
+    background: transparent;
+    color: #94a3b8;
+    border: 0;
+    border-radius: 0;
+    padding: 4px 12px;
+    border-right: 1px solid rgba(0, 229, 255, 0.18);
+    box-shadow: none;
+    text-shadow: none;
+    font-weight: 500;
+  }
   .size .seg button:last-child { border-right: 0; }
-  .size .seg button:hover { background: #eff6ff; }
-  .size .seg button.on { background: #2563eb; color: #fff; }
+  .size .seg button:hover { background: rgba(0, 180, 255, 0.12); color: #e2e8f0; filter: none; }
+  .size .seg button.on {
+    background: linear-gradient(135deg, #004cff 0%, #0088ff 55%, #00e5ff 100%);
+    color: #fff;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 20, 60, 0.5);
+    box-shadow: inset 0 0 8px rgba(0, 240, 255, 0.35);
+  }
 </style>
 </head>
 <body>

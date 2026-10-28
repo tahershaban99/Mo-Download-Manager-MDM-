@@ -53,6 +53,40 @@ fn main() {
 "#,
         );
         if let Err(e) = res.compile() {
+            // Fallback for paths with spaces/parentheses where GNU windres fails on -I path
+            let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+            let tmp_dir = std::env::temp_dir().join("mdm_winres_build");
+            let _ = std::fs::create_dir_all(&tmp_dir);
+            let _ = std::fs::copy("icon.ico", tmp_dir.join("icon.ico"));
+            let rc_src = if out_dir.join("main_res.rc").exists() {
+                out_dir.join("main_res.rc")
+            } else {
+                out_dir.join("resource.rc")
+            };
+            if let Ok(rc_content) = std::fs::read_to_string(&rc_src) {
+                let rc_file = tmp_dir.join("main_res.rc");
+                let obj_file = tmp_dir.join("main_res.o");
+                let lib_file = out_dir.join("libmain_res.a");
+                let _ = std::fs::write(&rc_file, rc_content);
+                let windres = std::env::var("RC").unwrap_or_else(|_| "windres.exe".to_string());
+                let ar = std::env::var("AR").unwrap_or_else(|_| "ar.exe".to_string());
+                let status = std::process::Command::new(&windres)
+                    .current_dir(&tmp_dir)
+                    .args(["--use-temp-file", "-i", "main_res.rc", "-o", "main_res.o"])
+                    .status();
+                if matches!(status, Ok(s) if s.success()) {
+                    let _ = std::fs::remove_file(&lib_file);
+                    let ar_status = std::process::Command::new(&ar)
+                        .current_dir(&tmp_dir)
+                        .args(["crs", lib_file.to_str().unwrap(), obj_file.to_str().unwrap()])
+                        .status();
+                    if matches!(ar_status, Ok(s) if s.success()) {
+                        println!("cargo:rustc-link-search=native={}", out_dir.display());
+                        println!("cargo:rustc-link-lib=static=main_res");
+                        return;
+                    }
+                }
+            }
             println!("cargo:warning=could not embed the Windows icon: {e}");
         }
     }

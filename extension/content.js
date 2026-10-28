@@ -128,28 +128,57 @@
   }
   const STYLE = `
     :host { all: initial; }
-    .wrap { font: 11px/1.25 "Segoe UI", system-ui, sans-serif; color: #1f2733; display: inline-block; zoom: var(--z, 1); }
-    .btn { display: inline-flex; align-items: center; gap: 5px; color: #fff; border: 1px solid #0f4fb5;
-           background: linear-gradient(#3f8cf5, #1d63d6); border-radius: 3px; padding: 3px 7px;
-           cursor: grab; box-shadow: 0 1px 6px rgba(0,0,0,.35); font: inherit; font-weight: 600;
-           opacity: .88; transition: opacity .15s; user-select: none; white-space: nowrap; }
-    .btn:hover { opacity: 1; background: linear-gradient(#4b96fa, #1a5bc7); }
-    .btn.drag { cursor: grabbing; opacity: 1; }
-    .ico { width: 13px; height: 13px; flex: none; }
-    .caret { font-size: 9px; opacity: .9; }
-    .x { margin-left: auto; opacity: .8; padding: 0 2px; cursor: pointer; }
-    .x:hover { opacity: 1; }
-    .list { width: 240px; margin-top: 4px; background: #fff; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25);
-            overflow: hidden; max-height: 320px; overflow-y: auto; }
-    .item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #eef1f5; }
+    @keyframes mdmPop {
+      from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .wrap { font: 11.5px/1.3 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #e2e8f0; display: inline-block; zoom: var(--z, 1); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; color: #ffffff;
+           border: 1px solid rgba(115, 245, 255, 0.78);
+           background: linear-gradient(135deg, #004cff 0%, #0088ff 52%, #00e5ff 100%);
+           border-radius: 7px; padding: 4px 9px; cursor: grab;
+           box-shadow: 0 3px 14px rgba(0, 102, 255, 0.55), 0 0 12px rgba(0, 229, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+           text-shadow: 0 1px 2px rgba(0, 20, 60, 0.55);
+           font: inherit; font-weight: 600; letter-spacing: 0.15px;
+           opacity: .94; transition: opacity .18s ease, transform .18s ease, box-shadow .18s ease, filter .18s ease;
+           user-select: none; white-space: nowrap; }
+    .btn:hover { opacity: 1; filter: brightness(1.07); transform: translateY(-1px);
+                 box-shadow: 0 5px 20px rgba(0, 128, 255, 0.78), 0 0 18px rgba(0, 240, 255, 0.72), inset 0 1px 1px rgba(255, 255, 255, 0.55); }
+    .btn.drag { cursor: grabbing; opacity: 1; transform: scale(0.98); }
+    .ico { width: 14px; height: 14px; flex: none; filter: drop-shadow(0 1px 2px rgba(0, 25, 70, 0.45)); }
+    .caret { font-size: 9px; opacity: .92; text-shadow: 0 1px 2px rgba(0, 20, 60, 0.45); }
+    .x { margin-left: auto; opacity: .82; padding: 0 3px; border-radius: 4px; cursor: pointer; transition: background .15s, opacity .15s; }
+    .x:hover { opacity: 1; background: rgba(0, 20, 55, 0.28); }
+    .list { width: 248px; margin-top: 6px;
+            background: rgba(11, 16, 28, 0.94);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(0, 229, 255, 0.35); border-radius: 10px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.72), 0 0 20px rgba(0, 180, 255, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            overflow: hidden; max-height: 320px; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: #00d2ff rgba(11, 16, 28, 0.65);
+            animation: mdmPop .16s cubic-bezier(0.16, 1, 0.3, 1); }
+    .list[hidden] { display: none !important; }
+    .list::-webkit-scrollbar { width: 6px; }
+    .list::-webkit-scrollbar-track { background: rgba(8, 12, 22, 0.65); }
+    .list::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0066ff, #00e5ff); border-radius: 99px; }
+    .list::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+    .item { padding: 9px 11px; cursor: pointer;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            border-left: 2px solid transparent;
+            transition: background .15s ease, border-color .15s ease; }
     .item:last-child { border-bottom: 0; }
-    .item:hover { background: #eef4fe; }
-    .t { font-weight: 600; }
-    .s { color: #6b7686; font-size: 11px; word-break: break-all; }
-    .msg { padding: 8px 10px; color: #1a9e5a; }
-    .off { cursor: default; opacity: .7; }
-    .off:hover { background: #fff; }
-    .err { color: #d1342f; }`;
+    .item:hover { background: linear-gradient(90deg, rgba(0, 110, 255, 0.24) 0%, rgba(0, 229, 255, 0.06) 100%);
+                  border-left-color: #00e5ff; }
+    .t { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #f1f5f9; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700;
+             letter-spacing: 0.2px; color: #00f0ff; background: rgba(0, 210, 255, 0.14);
+             border: 1px solid rgba(0, 229, 255, 0.4); text-shadow: 0 0 8px rgba(0, 229, 255, 0.45); }
+    .fmt { color: #f1f5f9; font-weight: 600; }
+    .s { color: #8ba3c7; font-size: 10.5px; margin-top: 3px; word-break: break-all; }
+    .msg { padding: 10px 12px; color: #00f59b; font-weight: 600; text-shadow: 0 0 10px rgba(0, 245, 155, 0.3); }
+    .off { cursor: default; opacity: .65; }
+    .off:hover { background: transparent; border-left-color: transparent; }
+    .err { color: #ff4d6d; text-shadow: 0 0 10px rgba(255, 77, 109, 0.3); }`;
 
   function isMain(video) {
     return video === biggestVideo();
@@ -182,10 +211,10 @@
     svg.setAttribute("class", "ico");
     svg.setAttribute("viewBox", "0 0 16 16");
     const circle = document.createElementNS(svgNs, "circle");
-    for (const [k, v] of [["cx", "8"], ["cy", "8"], ["r", "7.5"], ["fill", "#fff"]]) circle.setAttribute(k, v);
+    for (const [k, v] of [["cx", "8"], ["cy", "8"], ["r", "7.5"], ["fill", "#ffffff"]]) circle.setAttribute(k, v);
     const arrow = document.createElementNS(svgNs, "path");
     arrow.setAttribute("d", "M6.6 3.5h2.8v4.6h2.3L8 12 4.3 8.1h2.3z");
-    arrow.setAttribute("fill", "#1d63d6");
+    arrow.setAttribute("fill", "#0055ff");
     svg.append(circle, arrow);
     const list = el("div", { class: "list", id: "list" });
     list.hidden = true;
@@ -300,7 +329,19 @@
       div.className = "item" + (m.disabled ? " off" : "");
       const t = document.createElement("div");
       t.className = "t";
-      t.textContent = m.label;
+      const labelStr = String(m.label || "");
+      const sep = labelStr.indexOf(" · ");
+      if (sep > 0 && !m.disabled) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = labelStr.slice(0, sep);
+        const fmt = document.createElement("span");
+        fmt.className = "fmt";
+        fmt.textContent = labelStr.slice(sep + 3);
+        t.append(badge, fmt);
+      } else {
+        t.textContent = labelStr;
+      }
       const s = document.createElement("div");
       s.className = "s";
       const sub = m.sub || "";

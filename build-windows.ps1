@@ -96,9 +96,12 @@ $effectiveRoot = $PSScriptRoot
 if ($PSScriptRoot -match '\s|\(|\)') {
     foreach ($letter in @("X", "Y", "Z", "V", "W")) {
         if (-not (Test-Path "$($letter):")) {
-            $buildDrive = "$($letter):"
-            subst $buildDrive $PSScriptRoot
-            $effectiveRoot = $buildDrive
+            $candidate = "$($letter):"
+            subst $candidate $PSScriptRoot 2>$null | Out-Null
+            if (Test-Path "$candidate\") {
+                $buildDrive = $candidate
+                $effectiveRoot = $buildDrive
+            }
             break
         }
     }
@@ -219,6 +222,23 @@ $redist = Join-Path $cache "redist"
 New-Item -ItemType Directory -Force $redist | Out-Null
 if (Test-Path "$cache\vc_redist.x64.exe") { Copy-Item "$cache\vc_redist.x64.exe" $redist -Force }
 Copy-Item "THIRD-PARTY-NOTICES.txt" $stage -Force
+if (Test-Path "crates\app\icon.ico") { Copy-Item "crates\app\icon.ico" $stage -Force }
+# Create Mozilla AMO upload zip (with forward-slash paths required by AMO linter)
+$amoZip = Join-Path $dist "mdm-firefox-amo.zip"
+if (Test-Path $amoZip) { Remove-Item -Force $amoZip }
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$extFfRoot = (Resolve-Path (Join-Path $stage "extension-firefox")).Path
+$zipStream = [System.IO.File]::Open($amoZip, [System.IO.FileMode]::Create)
+$zipArchive = New-Object System.IO.Compression.ZipArchive($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+foreach ($file in Get-ChildItem -Path $extFfRoot -Recurse -File) {
+    $relPath = $file.FullName.Substring($extFfRoot.Length + 1).Replace('\', '/')
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zipArchive, $file.FullName, $relPath, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+}
+$zipArchive.Dispose()
+$zipStream.Dispose()
+Write-Host "Created Mozilla AMO upload package: dist\mdm-firefox-amo.zip" -ForegroundColor Cyan
+
 # Firefox add-on (.xpi): If an official signed XPI exists in extension-signed, bundle it directly!
 $targetXpi = Join-Path $stage "mdm-firefox.xpi"
 if (Test-Path $targetXpi) { Remove-Item -Force $targetXpi }
@@ -227,8 +247,7 @@ if (Test-Path $signedXpi) {
     Write-Host "Bundling officially signed Firefox add-on from extension-signed\mdm-firefox.xpi..." -ForegroundColor Green
     Copy-Item $signedXpi $targetXpi -Force
 } else {
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $stage "extension-firefox"), $targetXpi)
+    Copy-Item $amoZip $targetXpi -Force
 }
 foreach ($f in @("ffmpeg.exe", "yt-dlp.exe", "ffmpeg-version.txt", "ffmpeg-LICENSE.txt")) {
     if (Test-Path "$cache\$f") { Copy-Item "$cache\$f" $tools -Force }

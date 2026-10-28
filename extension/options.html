@@ -4,14 +4,70 @@
 <meta charset="utf-8">
 <title>Mo Download Manager (MDM) - Settings</title>
 <style>
-  body { font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #0f172a; margin: 0; padding: 18px 22px; min-width: 420px; background: #f8fafc; }
-  h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 18px; }
-  h2 img { width: 28px; height: 28px; }
-  .card { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid #e2e8f0; }
-  label { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
-  select { padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
-  input[type=number] { width: 90px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
-  .saved { color: #10b981; font-size: 12px; height: 16px; margin-top: 8px; }
+  * { box-sizing: border-box; }
+  body {
+    font: 14px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color: #e2e8f0;
+    margin: 0;
+    padding: 22px 26px;
+    min-width: 440px;
+    min-height: 100vh;
+    background: radial-gradient(circle at top right, #0d1f3d 0%, #090d18 70%);
+  }
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+    font-size: 17px;
+    color: #f8fafc;
+    text-shadow: 0 0 12px rgba(0, 180, 255, 0.35);
+  }
+  h2 img { width: 28px; height: 28px; filter: drop-shadow(0 0 8px rgba(0, 210, 255, 0.5)); }
+  .card {
+    background: rgba(13, 20, 36, 0.88);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 18px rgba(0, 180, 255, 0.14);
+    border: 1px solid rgba(0, 229, 255, 0.28);
+  }
+  label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+    color: #cbd5e1;
+  }
+  input[type=checkbox] {
+    accent-color: #00d2ff;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  select, input[type=number] {
+    padding: 5px 10px;
+    background: rgba(9, 13, 24, 0.9);
+    color: #f1f5f9;
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    border-radius: 6px;
+    font: inherit;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select:focus, input[type=number]:focus {
+    border-color: #00f0ff;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+  }
+  input[type=number] { width: 96px; }
+  .saved {
+    color: #00f59b;
+    text-shadow: 0 0 8px rgba(0, 245, 155, 0.35);
+    font-size: 12.5px;
+    font-weight: 600;
+    height: 18px;
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>

@@ -1,6 +1,5 @@
 {
-  "version": "2.0.1",
-  "url": "https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v2.0.1/MDM-Setup.exe",
-  "sha256": "5dcfbb8f11e4f09d197b8edf508f75297e35984f718d75544c2d1848bf63b043",
-  "sig": "0a5c0fecb92e786d7de35f3510e15aa824df14983dd60cffabd720f1b06e006872b47dc83587f092d15a918785b975ac0dd30d4ae6b4355e754f7b8c6b8f7a0d"
+  "version": "2.0.2",
+  "url": "https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v2.0.2/MDM-Setup.exe",
+  "sha256": "4becacf285b2aacd2259e363a15dcb62ef33e3e04870f093271baed0e2a152c2"
 }

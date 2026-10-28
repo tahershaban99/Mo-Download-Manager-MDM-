@@ -3,7 +3,7 @@
 // queue tree, detailed list, one progress window per download. Nine themes.
 
 import { Button, LineEdit, SpinBox, CheckBox, ComboBox, ListView, TabWidget, TextEdit, Palette } from "std-widgets.slint";
-import { DownloadRow, QueueRow, SegView, Cols, ColDef, CatRow, PairRow, LinkRow, Theme, ThemedWindow, P, Icon, G, TypeIcon, BigTypeIcon, ToolBtn, ToolSeparator, TreeItem, HeaderCell, Cell, MenuEntry, MenuSep, MenuLabel, Glyph, StatusBadge } from "common.slint";
+import { DownloadRow, QueueRow, SegView, Cols, ColDef, CatRow, PairRow, LinkRow, Theme, ThemedWindow, P, Icon, G, TypeIcon, BigTypeIcon, ActionBtn, ToolBtn, ToolSeparator, TreeItem, HeaderCell, Cell, MenuEntry, MenuSep, MenuLabel, Glyph, StatusBadge } from "common.slint";
 export { DownloadRow, QueueRow, SegView, Cols, ColDef, CatRow, PairRow, LinkRow, Theme }
 export { BrowserRow } from "dialogs.slint";
 export { ColumnsDialog, CategoryDialog, FindDialog, PropertiesDialog, DuplicateDialog, CountdownDialog, SchedulerDialog, GrabberDialog, TipDialog, RefreshDialog, SettingsDialog, PlaylistDialog, BrowserDialog, AboutDialog, UpdateDialog } from "dialogs.slint";
@@ -31,23 +31,35 @@ component DownloadItem inherits Rectangle {
     // dragging a finished file out of the program (onto the desktop, a folder…)
     callback drag-out();
     property <bool> dragged-out;
-    height: root.view-mode == 1 ? max(58px, 58px * Theme.font-scale)
-          : root.view-mode == 0 ? max(34px, 34px * Theme.font-scale)
-          : max(24px, 24px * Theme.font-scale);
-    border-radius: root.view-mode == 1 ? 8px : root.view-mode == 0 ? 6px : 0px;
-    background: root.selected ? Theme.select
-              : ta.has-hover ? Theme.hover
-              : root.view-mode == 1 ? Theme.pill-bg
-              : transparent;
-    border-width: root.view-mode == 1 ? 1px : (root.selected || ta.has-hover) && root.view-mode == 0 ? 1px : 0px;
-    border-color: root.selected ? Theme.select-line : Theme.line;
-    if root.selected && root.view-mode != 2: Rectangle {
-        x: 0px;
-        y: 4px;
-        width: 3px;
-        height: parent.height - 8px;
-        border-radius: 1.5px;
-        background: Theme.accent;
+    height: root.view-mode == 1 ? max(64px, 64px * Theme.font-scale)
+          : root.view-mode == 0 ? max(44px, 44px * Theme.font-scale)
+          : max(26px, 26px * Theme.font-scale);
+    border-radius: 0px;
+    background: root.view-mode == 2 ? (root.selected ? Theme.select : ta.has-hover ? Theme.hover : transparent) : transparent;
+    if root.view-mode != 2: Rectangle {
+        x: 6px;
+        y: 2px;
+        width: parent.width - 12px;
+        height: parent.height - 4px;
+        border-radius: 9px;
+        background: root.selected ? (Theme.dark ? #262626 : Theme.select)
+                  : ta.has-hover ? (Theme.dark ? #212121 : Theme.hover)
+                  : (Theme.dark ? #191919 : #ffffff);
+        border-width: 1px;
+        border-color: root.selected ? Theme.accent : (ta.has-hover ? #ffffff22 : Theme.line);
+        // Status color strip on the edge of every card
+        Rectangle {
+            x: 0px;
+            y: 6px;
+            width: 3px;
+            height: parent.height - 12px;
+            border-radius: 1.5px;
+            background: root.data.state == 3 ? Theme.ok
+                      : root.data.state == 4 ? Theme.err
+                      : root.data.state == 1 ? Theme.accent
+                      : root.data.state == 2 ? Theme.warn
+                      : Theme.muted;
+        }
     }
     ta := TouchArea {
         width: parent.width;
@@ -281,17 +293,17 @@ component DownloadItem inherits Rectangle {
                 // thin progress line under the status, for running downloads
                 if root.data.state == 1 || (root.data.state == 2 && root.data.progress > 0): Rectangle {
                     x: 6px;
-                    y: parent.height - 3px;
+                    y: parent.height - 4px;
                     width: parent.width - 12px;
-                    height: 2px;
-                    border-radius: 1px;
+                    height: 3px;
+                    border-radius: 1.5px;
                     background: Theme.bar-bg;
                     Rectangle {
                         x: 0;
                         width: parent.width * root.data.progress;
                         height: parent.height;
-                        border-radius: 1px;
-                        background: root.data.state == 1 ? Theme.accent : Theme.warn;
+                        border-radius: 1.5px;
+                        background: root.data.state == 1 ? @linear-gradient(90deg, #004cff 0%, #00e5ff 100%) : Theme.warn;
                         animate width {
                             duration: 250ms;
                             easing: linear;
@@ -1361,142 +1373,173 @@ export component MainWindow inherits ThemedWindow {
         }
 
         VerticalLayout {
-            // ---- WinUI 3 CommandBar
+            // ---- Modern Floating Pill Islands CommandBar
             Rectangle {
-                height: root.toolbar-small ? 44px : 62px;
+                height: root.toolbar-small ? 52px : 66px;
                 min-width: 0px;
                 clip: true;
-                background: Theme.toolbar-top;
+                background: Theme.window;
                 HorizontalLayout {
-                    padding: 5px;
+                    padding-top: 6px;
+                    padding-bottom: 4px;
                     padding-left: 8px;
-                    padding-right: 12px;
-                    spacing: 3px;
-                    ToolBtn {
-                        icon: "add";
-                        text: @tr("Add URL");
-                        small: root.toolbar-small;
-                        primary: true;
-                        clicked => {
-                            root.add-url();
+                    padding-right: 10px;
+                    spacing: 8px;
+                    // Island 1: Add Downloads
+                    Rectangle {
+                        border-radius: 11px;
+                        background: Theme.panel;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        HorizontalLayout {
+                            padding: 3px;
+                            spacing: 3px;
+                            ToolBtn {
+                                icon: "add";
+                                text: @tr("Add URL");
+                                small: root.toolbar-small;
+                                primary: true;
+                                clicked => {
+                                    root.add-url();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "batch";
+                                text: @tr("Add Batch");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.add-batch();
+                                }
+                            }
                         }
                     }
-                    ToolBtn {
-                        icon: "batch";
-                        text: @tr("Add Batch");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.add-batch();
+                    // Island 2: Download Controls
+                    Rectangle {
+                        border-radius: 11px;
+                        background: Theme.panel;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        HorizontalLayout {
+                            padding: 3px;
+                            spacing: 2px;
+                            ToolBtn {
+                                icon: "resume";
+                                text: @tr("Resume");
+                                small: root.toolbar-small;
+                                enabled: root.can-resume;
+                                clicked => {
+                                    root.resume(root.selected-id);
+                                }
+                            }
+                            ToolBtn {
+                                icon: "stop";
+                                text: @tr("Stop");
+                                small: root.toolbar-small;
+                                enabled: root.can-stop;
+                                clicked => {
+                                    root.pause(root.selected-id);
+                                }
+                            }
+                            ToolBtn {
+                                icon: "stopall";
+                                text: @tr("Stop All");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.stop-all();
+                                }
+                            }
+                            ToolSeparator { }
+                            ToolBtn {
+                                icon: "delete";
+                                text: @tr("Delete");
+                                small: root.toolbar-small;
+                                enabled: root.selected-id >= 0;
+                                clicked => {
+                                    root.delete(root.selected-id);
+                                }
+                            }
+                            ToolBtn {
+                                icon: "deletedone";
+                                text: @tr("Delete Done");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.delete-completed();
+                                }
+                            }
                         }
                     }
-                    ToolSeparator { }
-                    ToolBtn {
-                        icon: "resume";
-                        text: @tr("Resume");
-                        small: root.toolbar-small;
-                        enabled: root.can-resume;
-                        clicked => {
-                            root.resume(root.selected-id);
-                        }
-                    }
-                    ToolBtn {
-                        icon: "stop";
-                        text: @tr("Stop");
-                        small: root.toolbar-small;
-                        enabled: root.can-stop;
-                        clicked => {
-                            root.pause(root.selected-id);
-                        }
-                    }
-                    ToolBtn {
-                        icon: "stopall";
-                        text: @tr("Stop All");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.stop-all();
-                        }
-                    }
-                    ToolSeparator { }
-                    ToolBtn {
-                        icon: "delete";
-                        text: @tr("Delete");
-                        small: root.toolbar-small;
-                        enabled: root.selected-id >= 0;
-                        clicked => {
-                            root.delete(root.selected-id);
-                        }
-                    }
-                    ToolBtn {
-                        icon: "deletedone";
-                        text: @tr("Delete Done");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.delete-completed();
-                        }
-                    }
-                    ToolSeparator { }
-                    ToolBtn {
-                        icon: "options";
-                        text: @tr("Options");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.open-settings(0);
-                        }
-                    }
-                    ToolBtn {
-                        icon: "scheduler";
-                        text: @tr("Scheduler");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.open-scheduler();
-                        }
-                    }
-                    ToolBtn {
-                        icon: "limiter";
-                        text: root.limiter-on ? @tr("Limiter: On") : @tr("Limiter: Off");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.toggle-limiter();
-                        }
-                    }
-                    ToolSeparator { }
-                    start-q := ToolBtn {
-                        icon: "startqueue";
-                        text: @tr("Start Queue");
-                        small: root.toolbar-small;
-                        width: root.toolbar-small ? 34px : 62px;
-                        clicked => {
-                            root.qmenu-start = true;
-                            root.qmenu-x = self.x;
-                            queue-menu.show();
-                        }
-                    }
-                    stop-q := ToolBtn {
-                        icon: "stopqueue";
-                        text: @tr("Stop Queue");
-                        small: root.toolbar-small;
-                        width: root.toolbar-small ? 34px : 62px;
-                        clicked => {
-                            root.qmenu-start = false;
-                            root.qmenu-x = self.x;
-                            queue-menu.show();
-                        }
-                    }
-                    ToolSeparator { }
-                    ToolBtn {
-                        icon: "grabber";
-                        text: @tr("Grabber");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.grabber();
-                        }
-                    }
-                    ToolBtn {
-                        icon: "playlist";
-                        text: @tr("Playlist");
-                        small: root.toolbar-small;
-                        clicked => {
-                            root.playlist();
+                    // Island 3: Queues & Tools
+                    Rectangle {
+                        border-radius: 11px;
+                        background: Theme.panel;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        HorizontalLayout {
+                            padding: 3px;
+                            spacing: 2px;
+                            start-q := ToolBtn {
+                                icon: "startqueue";
+                                text: @tr("Start Queue");
+                                small: root.toolbar-small;
+                                width: root.toolbar-small ? 34px : 62px;
+                                clicked => {
+                                    root.qmenu-start = true;
+                                    root.qmenu-x = self.x;
+                                    queue-menu.show();
+                                }
+                            }
+                            stop-q := ToolBtn {
+                                icon: "stopqueue";
+                                text: @tr("Stop Queue");
+                                small: root.toolbar-small;
+                                width: root.toolbar-small ? 34px : 62px;
+                                clicked => {
+                                    root.qmenu-start = false;
+                                    root.qmenu-x = self.x;
+                                    queue-menu.show();
+                                }
+                            }
+                            ToolSeparator { }
+                            ToolBtn {
+                                icon: "grabber";
+                                text: @tr("Grabber");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.grabber();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "playlist";
+                                text: @tr("Playlist");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.playlist();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "scheduler";
+                                text: @tr("Scheduler");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.open-scheduler();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "limiter";
+                                text: root.limiter-on ? @tr("Limiter: On") : @tr("Limiter: Off");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.toggle-limiter();
+                                }
+                            }
+                            ToolBtn {
+                                icon: "options";
+                                text: @tr("Options");
+                                small: root.toolbar-small;
+                                clicked => {
+                                    root.open-settings(0);
+                                }
+                            }
                         }
                     }
                     Rectangle {
@@ -1505,7 +1548,7 @@ export component MainWindow inherits ThemedWindow {
                     VerticalLayout {
                         alignment: center;
                         LineEdit {
-                            width: 96px;
+                            width: 140px;
                             placeholder-text: @tr("Filter the list…");
                             text <=> root.search;
                             edited(t) => {
@@ -1514,41 +1557,126 @@ export component MainWindow inherits ThemedWindow {
                         }
                     }
                 }
-                Rectangle {
-                    x: 0;
-                    y: parent.height - 1px;
-                    width: parent.width;
-                    height: 1px;
-                    background: Theme.line;
-                }
             }
 
             HorizontalLayout {
                 vertical-stretch: 1;
-                padding: 6px;
-                spacing: 6px;
-                // ---- tree
+                padding: 8px;
+                padding-top: 4px;
+                spacing: 8px;
+                // ---- Modern Sidebar with Dashboard Quick-Filter Cards
                 if !root.hide-categories: Rectangle {
-                    width: 220px;
-                    border-radius: 8px;
+                    width: 236px;
+                    border-radius: 12px;
                     clip: true;
                     background: Theme.panel;
                     border-width: 1px;
                     border-color: Theme.line;
                     VerticalLayout {
-                        padding: 3px;
-                        Rectangle {
-                            height: 26px;
-                            border-radius: 4px;
-                            background: Theme.subtle-bg;
-                            Text {
-                                x: 8px;
-                                height: parent.height;
-                                text: @tr("Categories");
-                                vertical-alignment: center;
-                                font-size: 12px * Theme.font-scale;
-                                font-weight: 600;
-                                color: Theme.text;
+                        padding: 8px;
+                        spacing: 6px;
+                        // 3 Mini Dashboard Stat Cards
+                        HorizontalLayout {
+                            spacing: 5px;
+                            height: 46px;
+                            // All
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: 8px;
+                                background: root.view == "all" ? #292929 : Theme.subtle-bg;
+                                border-width: 1px;
+                                border-color: root.view == "all" ? Theme.accent : Theme.line;
+                                TouchArea {
+                                    mouse-cursor: MouseCursor.pointer;
+                                    clicked => {
+                                        root.view = "all";
+                                        root.view-changed(root.view);
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 1px;
+                                    Text {
+                                        text: root.count-all != "" ? root.count-all : "0";
+                                        horizontal-alignment: center;
+                                        font-size: 13px * Theme.font-scale;
+                                        font-weight: 700;
+                                        color: Theme.accent;
+                                    }
+                                    Text {
+                                        text: @tr("All Downloads");
+                                        horizontal-alignment: center;
+                                        font-size: 9.5px * Theme.font-scale;
+                                        color: Theme.muted;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                            // Unfinished
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: 8px;
+                                background: root.view == "unfinished" ? #292929 : Theme.subtle-bg;
+                                border-width: 1px;
+                                border-color: root.view == "unfinished" ? Theme.warn : Theme.line;
+                                TouchArea {
+                                    mouse-cursor: MouseCursor.pointer;
+                                    clicked => {
+                                        root.view = "unfinished";
+                                        root.view-changed(root.view);
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 1px;
+                                    Text {
+                                        text: root.count-unfinished != "" ? root.count-unfinished : "0";
+                                        horizontal-alignment: center;
+                                        font-size: 13px * Theme.font-scale;
+                                        font-weight: 700;
+                                        color: Theme.warn;
+                                    }
+                                    Text {
+                                        text: @tr("Unfinished");
+                                        horizontal-alignment: center;
+                                        font-size: 9.5px * Theme.font-scale;
+                                        color: Theme.muted;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                            // Finished
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: 8px;
+                                background: root.view == "finished" ? #292929 : Theme.subtle-bg;
+                                border-width: 1px;
+                                border-color: root.view == "finished" ? Theme.ok : Theme.line;
+                                TouchArea {
+                                    mouse-cursor: MouseCursor.pointer;
+                                    clicked => {
+                                        root.view = "finished";
+                                        root.view-changed(root.view);
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 1px;
+                                    Text {
+                                        text: root.count-finished != "" ? root.count-finished : "0";
+                                        horizontal-alignment: center;
+                                        font-size: 13px * Theme.font-scale;
+                                        font-weight: 700;
+                                        color: Theme.ok;
+                                    }
+                                    Text {
+                                        text: @tr("Finished");
+                                        horizontal-alignment: center;
+                                        font-size: 9.5px * Theme.font-scale;
+                                        color: Theme.muted;
+                                        overflow: elide;
+                                    }
+                                }
                             }
                         }
                         Flickable {
@@ -1687,16 +1815,16 @@ export component MainWindow inherits ThemedWindow {
                             }
                         }
                         HorizontalLayout {
-                            padding: 4px;
-                            spacing: 4px;
-                            Button {
+                            padding: 5px;
+                            spacing: 5px;
+                            ActionBtn {
                                 text: @tr("New queue");
                                 horizontal-stretch: 1;
                                 clicked => {
                                     root.new-queue();
                                 }
                             }
-                            Button {
+                            ActionBtn {
                                 text: @tr("Edit");
                                 clicked => {
                                     root.edit-queue(root.current-queue);
@@ -1711,15 +1839,15 @@ export component MainWindow inherits ThemedWindow {
                     horizontal-stretch: 1;
                     min-width: 300px;
                     clip: true;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     background: Theme.panel;
                     border-width: 1px;
                     border-color: Theme.line;
                     VerticalLayout {
                         padding: 1px;
                         if root.list-view-mode != 1: Rectangle {
-                            height: 26px;
-                            background: Theme.header-top;
+                            height: 28px;
+                            background: @linear-gradient(180deg, Theme.header-top 0%, Theme.header-bottom 100%);
                             clip: true;
                             // scrolls sideways together with the list (wide columns)
                             HorizontalLayout {
@@ -1886,144 +2014,230 @@ export component AddDialog inherits ThemedWindow {
     callback cancel();
 
     VerticalLayout {
-        padding: 14px;
-        spacing: 10px;
-        HorizontalLayout {
-            spacing: 14px;
-            GridLayout {
-                spacing: 8px;
-                horizontal-stretch: 1;
-                Row {
-                    Text {
-                        text: @tr("URL");
-                        vertical-alignment: center;
-                        color: Theme.text;
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        LineEdit {
-                            text <=> root.url;
-                            placeholder-text: @tr("https://example.com/file");
-                            horizontal-stretch: 1;
-                            accepted(t) => {
-                                root.check-url();
-                            }
-                        }
-                        Button {
-                            text: @tr("Check");
-                            clicked => {
-                                root.check-url();
-                            }
-                        }
-                    }
-                }
-                Row {
-                    Text {
-                        text: @tr("Category");
-                        vertical-alignment: center;
-                        color: Theme.text;
-                    }
-                    HorizontalLayout {
-                        ComboBox {
-                            width: 200px;
-                            model: root.category-names;
-                            current-index <=> root.category-index;
-                            selected(v) => {
-                                root.category-changed(root.category-index);
-                            }
-                        }
-                        Rectangle {
-                            horizontal-stretch: 1;
-                        }
-                    }
-                }
-                Row {
-                    Text {
-                        text: @tr("Save As");
-                        vertical-alignment: center;
-                        color: Theme.text;
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        LineEdit {
-                            text <=> root.save-as;
-                            horizontal-stretch: 1;
-                        }
-                        Button {
-                            text: "…";
-                            clicked => {
-                                root.browse();
-                            }
-                        }
-                    }
-                }
-                Row {
-                    Rectangle { }
-                    CheckBox {
-                        text: @tr("Remember this path for \"{}\" category", root.category-name);
-                        checked <=> root.remember-path;
-                    }
-                }
-                Row {
-                    Text {
-                        text: @tr("Description");
-                        vertical-alignment: center;
-                        color: Theme.text;
-                    }
-                    LineEdit {
-                        text <=> root.description;
-                        placeholder-text: @tr("optional note");
-                    }
-                }
-            }
-            VerticalLayout {
-                width: 110px;
-                spacing: 6px;
+        padding: 16px;
+        spacing: 12px;
+        // ---- Top Hero File Banner Card
+        Rectangle {
+            height: 78px;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: root.info-error ? Theme.err : Theme.line;
+            background: Theme.panel;
+            HorizontalLayout {
+                padding: 12px;
+                spacing: 14px;
                 alignment: start;
-                padding-top: 4px;
-                BigTypeIcon {
-                    kind: root.kind;
-                    ext: root.ext;
+                Rectangle {
+                    width: 54px;
+                    height: 54px;
+                    border-radius: 12px;
+                    background: Theme.subtle-bg;
+                    border-width: 1px;
+                    border-color: Theme.line;
+                    TypeIcon {
+                        kind: root.kind;
+                        width: 36px;
+                        height: 36px;
+                        x: 9px;
+                        y: 9px;
+                    }
                 }
-                Text {
-                    text: root.size-text;
-                    horizontal-alignment: center;
-                    font-size: 12px * Theme.font-scale;
-                    font-weight: 600;
-                    color: Theme.text;
-                    wrap: word-wrap;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 5px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        if root.ext != "": Rectangle {
+                            height: 22px;
+                            border-radius: 6px;
+                            background: Theme.pill-bg;
+                            border-width: 1px;
+                            border-color: Theme.accent.transparentize(0.45);
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                Text {
+                                    text: root.ext;
+                                    font-size: 11px * Theme.font-scale;
+                                    font-weight: 700;
+                                    color: Theme.accent;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        Text {
+                            text: root.size-text;
+                            font-size: 14px * Theme.font-scale;
+                            font-weight: 700;
+                            color: Theme.text;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                    Text {
+                        text: root.probing ? @tr("Checking the address…") : root.info;
+                        color: root.info-error ? Theme.err : Theme.muted;
+                        overflow: elide;
+                        font-size: 11.5px * Theme.font-scale;
+                    }
                 }
             }
         }
-        HorizontalLayout {
-            spacing: 8px;
-            CheckBox {
-                text: @tr("Use authorization");
-                checked <=> root.use-login;
-            }
-            if root.use-login: Text {
-                text: @tr("Login");
-                vertical-alignment: center;
-                color: Theme.text;
-            }
-            if root.use-login: LineEdit {
-                text <=> root.user;
-                horizontal-stretch: 1;
-            }
-            if root.use-login: Text {
-                text: @tr("Password");
-                vertical-alignment: center;
-                color: Theme.text;
-            }
-            if root.use-login: LineEdit {
-                text <=> root.password;
-                input-type: InputType.password;
-                horizontal-stretch: 1;
-            }
-            if !root.use-login: Rectangle {
-                horizontal-stretch: 1;
+
+        // ---- Main Form Card
+        Rectangle {
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: Theme.line;
+            background: Theme.panel;
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+                GridLayout {
+                    spacing: 9px;
+                    Row {
+                        Text {
+                            text: @tr("URL");
+                            vertical-alignment: center;
+                            font-weight: 600;
+                            color: Theme.muted;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            LineEdit {
+                                text <=> root.url;
+                                placeholder-text: @tr("https://example.com/file");
+                                horizontal-stretch: 1;
+                                accepted(t) => {
+                                    root.check-url();
+                                }
+                            }
+                            ActionBtn {
+                                text: @tr("Check");
+                                clicked => {
+                                    root.check-url();
+                                }
+                            }
+                        }
+                    }
+                    Row {
+                        Text {
+                            text: @tr("Save As");
+                            vertical-alignment: center;
+                            font-weight: 600;
+                            color: Theme.muted;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            LineEdit {
+                                text <=> root.save-as;
+                                horizontal-stretch: 1;
+                            }
+                            ActionBtn {
+                                text: "…";
+                                min-width: 44px;
+                                clicked => {
+                                    root.browse();
+                                }
+                            }
+                        }
+                    }
+                    Row {
+                        Rectangle { }
+                        CheckBox {
+                            text: @tr("Remember this path for \"{}\" category", root.category-name);
+                            checked <=> root.remember-path;
+                        }
+                    }
+                    Row {
+                        Text {
+                            text: @tr("Category");
+                            vertical-alignment: center;
+                            font-weight: 600;
+                            color: Theme.muted;
+                        }
+                        HorizontalLayout {
+                            spacing: 10px;
+                            ComboBox {
+                                width: 155px;
+                                model: root.category-names;
+                                current-index <=> root.category-index;
+                                selected(v) => {
+                                    root.category-changed(root.category-index);
+                                }
+                            }
+                            Text {
+                                text: @tr("Queue");
+                                vertical-alignment: center;
+                                font-weight: 600;
+                                color: Theme.muted;
+                            }
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: root.queue-names;
+                                current-index <=> root.queue-index;
+                            }
+                            Text {
+                                text: @tr("Connections");
+                                vertical-alignment: center;
+                                font-weight: 600;
+                                color: Theme.muted;
+                            }
+                            SpinBox {
+                                width: 92px;
+                                minimum: 1;
+                                maximum: 32;
+                                value <=> root.connections;
+                            }
+                        }
+                    }
+                    Row {
+                        Text {
+                            text: @tr("Description");
+                            vertical-alignment: center;
+                            font-weight: 600;
+                            color: Theme.muted;
+                        }
+                        LineEdit {
+                            text <=> root.description;
+                            placeholder-text: @tr("optional note");
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    CheckBox {
+                        text: @tr("Use authorization");
+                        checked <=> root.use-login;
+                    }
+                    if root.use-login: Text {
+                        text: @tr("Login");
+                        vertical-alignment: center;
+                        color: Theme.text;
+                    }
+                    if root.use-login: LineEdit {
+                        text <=> root.user;
+                        horizontal-stretch: 1;
+                    }
+                    if root.use-login: Text {
+                        text: @tr("Password");
+                        vertical-alignment: center;
+                        color: Theme.text;
+                    }
+                    if root.use-login: LineEdit {
+                        text <=> root.password;
+                        input-type: InputType.password;
+                        horizontal-stretch: 1;
+                    }
+                    if !root.use-login: Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                }
             }
         }
+
         if root.warning != "": HorizontalLayout {
             spacing: 6px;
             Glyph {
@@ -2037,55 +2251,11 @@ export component AddDialog inherits ThemedWindow {
                 horizontal-stretch: 1;
             }
         }
-        Rectangle {
-            height: 32px;
-            border-width: 1px;
-            border-color: root.info-error ? Theme.err : Theme.line;
-            background: Theme.panel;
-            Text {
-                x: 10px;
-                width: parent.width - 20px;
-                height: parent.height;
-                vertical-alignment: center;
-                text: root.probing ? @tr("Checking the address…") : root.info;
-                color: root.info-error ? Theme.err : Theme.muted;
-                overflow: elide;
-                font-size: 12px * Theme.font-scale;
-            }
-        }
-        HorizontalLayout {
-            spacing: 8px;
-            Text {
-                text: @tr("Connections");
-                vertical-alignment: center;
-                color: Theme.text;
-            }
-            SpinBox {
-                width: 110px;
-                minimum: 1;
-                maximum: 32;
-                value <=> root.connections;
-            }
-            Rectangle {
-                width: 10px;
-            }
-            Text {
-                text: @tr("Queue");
-                vertical-alignment: center;
-                color: Theme.text;
-            }
-            ComboBox {
-                model: root.queue-names;
-                current-index <=> root.queue-index;
-            }
-            Rectangle {
-                horizontal-stretch: 1;
-            }
-        }
+
         HorizontalLayout {
             spacing: 8px;
             alignment: end;
-            if root.can-use-browser: Button {
+            if root.can-use-browser: ActionBtn {
                 text: @tr("Download with the browser");
                 clicked => {
                     root.use-browser();
@@ -2094,14 +2264,14 @@ export component AddDialog inherits ThemedWindow {
             if root.can-use-browser: Rectangle {
                 horizontal-stretch: 1;
             }
-            Button {
+            ActionBtn {
                 text: @tr("Download Later");
                 enabled: root.url != "";
                 clicked => {
                     root.later();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Start Download");
                 primary: true;
                 enabled: root.url != "";
@@ -2109,7 +2279,7 @@ export component AddDialog inherits ThemedWindow {
                     root.start-now();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Cancel");
                 clicked => {
                     root.cancel();
@@ -2123,10 +2293,10 @@ component TabButton inherits Rectangle {
     in property <string> text;
     in property <bool> active;
     callback clicked();
-    height: 30px;
-    width: label.preferred-width + 24px;
-    border-radius: 6px;
-    background: root.active ? Theme.panel : ta.has-hover ? Theme.hover : transparent;
+    height: 32px;
+    width: label.preferred-width + 28px;
+    border-radius: 8px;
+    background: root.active ? (Theme.dark ? #262626 : Theme.panel) : ta.has-hover ? Theme.hover : transparent;
     border-width: 1px;
     border-color: root.active ? Theme.line : transparent;
     ta := TouchArea {
@@ -2143,13 +2313,13 @@ component TabButton inherits Rectangle {
         horizontal-alignment: center;
         vertical-alignment: center;
         font-size: 12px * Theme.font-scale;
-        font-weight: root.active ? 600 : 400;
-        color: root.active ? Theme.accent : Theme.text;
+        font-weight: root.active ? 700 : 500;
+        color: root.active ? Theme.accent : Theme.muted;
     }
     if root.active: Rectangle {
-        x: (parent.width - 24px) / 2;
+        x: (parent.width - 28px) / 2;
         y: parent.height - 3px;
-        width: 24px;
+        width: 28px;
         height: 3px;
         border-radius: 1.5px;
         background: Theme.accent;
@@ -2408,14 +2578,14 @@ export component BatchDialog inherits ThemedWindow {
                 vertical-alignment: center;
                 horizontal-stretch: 1;
             }
-            Button {
+            ActionBtn {
                 text: @tr("Add");
                 primary: true;
                 clicked => {
                     root.ok();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Cancel");
                 clicked => {
                     root.cancel();
@@ -2498,119 +2668,166 @@ export component DetailsDialog inherits ThemedWindow {
         }
         Rectangle {
             background: Theme.card;
-            border-radius: 8px;
+            border-radius: 12px;
             border-width: 1px;
             border-color: Theme.line;
-            min-height: 180px;
+            min-height: 195px;
             clip: true;
             if root.tab == 0: VerticalLayout {
-                padding: 10px;
-                spacing: 6px;
+                padding: 12px;
+                spacing: 10px;
                 alignment: start;
+                // Top URL + Status Header Pill
+                Rectangle {
+                    height: 36px;
+                    border-radius: 8px;
+                    background: Theme.subtle-bg;
+                    border-width: 1px;
+                    border-color: Theme.line;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 8px;
+                        Rectangle {
+                            width: 20px;
+                            TypeIcon {
+                                kind: root.kind;
+                                width: 20px;
+                                height: 20px;
+                                y: (parent.height - 20px) / 2;
+                            }
+                        }
+                        Text {
+                            text: root.url;
+                            font-size: 11px * Theme.font-scale;
+                            overflow: elide;
+                            color: Theme.muted;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        StatusBadge {
+                            y: (parent.height - self.height) / 2;
+                            text: root.status;
+                            state: root.state;
+                        }
+                    }
+                }
+                // 4 Modern Bento Stat Cards (2x2 Grid)
                 HorizontalLayout {
                     spacing: 8px;
-                    TypeIcon {
-                        kind: root.kind;
-                        width: 20px;
-                        height: 20px;
-                    }
-                    Text {
-                        text: root.url;
-                        font-size: 11px * Theme.font-scale;
-                        overflow: elide;
-                        color: Theme.accent;
-                        vertical-alignment: center;
+                    // Card 1: Downloaded / File Size
+                    Rectangle {
                         horizontal-stretch: 1;
+                        height: 54px;
+                        border-radius: 9px;
+                        background: Theme.subtle-bg;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        VerticalLayout {
+                            padding: 8px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: @tr("Downloaded") + " / " + @tr("File size");
+                                font-size: 10.5px * Theme.font-scale;
+                                color: Theme.muted;
+                            }
+                            Text {
+                                text: root.downloaded + "  /  " + root.size;
+                                font-size: 13px * Theme.font-scale;
+                                font-weight: 700;
+                                color: Theme.text;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                    // Card 2: Transfer Rate
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 54px;
+                        border-radius: 9px;
+                        background: Theme.subtle-bg;
+                        border-width: 1px;
+                        border-color: root.state == 1 ? Theme.accent.transparentize(0.5) : Theme.line;
+                        VerticalLayout {
+                            padding: 8px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: @tr("Transfer rate");
+                                font-size: 10.5px * Theme.font-scale;
+                                color: Theme.muted;
+                            }
+                            Text {
+                                text: root.speed;
+                                font-size: 14px * Theme.font-scale;
+                                font-weight: 700;
+                                color: Theme.accent;
+                                overflow: elide;
+                            }
+                        }
                     }
                 }
-                Rectangle {
-                    height: 1px;
-                    background: Theme.grid;
-                }
-                VerticalLayout {
-                    spacing: 3px;
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("Status");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.status;
-                            color: root.state == 4 ? Theme.err : Theme.text;
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                        }
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("File size");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.size;
-                            color: Theme.text;
-                            horizontal-stretch: 1;
-                            overflow: elide;
+                HorizontalLayout {
+                    spacing: 8px;
+                    // Card 3: Time Left
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 52px;
+                        border-radius: 9px;
+                        background: Theme.subtle-bg;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        VerticalLayout {
+                            padding: 8px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: @tr("Time left");
+                                font-size: 10.5px * Theme.font-scale;
+                                color: Theme.muted;
+                            }
+                            Text {
+                                text: root.eta;
+                                font-size: 13px * Theme.font-scale;
+                                font-weight: 700;
+                                color: Theme.text;
+                                overflow: elide;
+                            }
                         }
                     }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("Downloaded");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.downloaded;
-                            color: Theme.text;
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                        }
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("Transfer rate");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.speed;
-                            color: Theme.text;
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                        }
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("Time left");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.eta;
-                            color: Theme.text;
-                            horizontal-stretch: 1;
-                            overflow: elide;
-                        }
-                    }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text {
-                            text: @tr("Resume capability");
-                            color: Theme.muted;
-                            width: 125px;
-                        }
-                        Text {
-                            text: root.resumable;
-                            color: root.resumable-ok ? Theme.ok : Theme.err;
-                            horizontal-stretch: 1;
-                            overflow: elide;
+                    // Card 4: Resume Capability
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 52px;
+                        border-radius: 9px;
+                        background: Theme.subtle-bg;
+                        border-width: 1px;
+                        border-color: Theme.line;
+                        VerticalLayout {
+                            padding: 8px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: @tr("Resume capability");
+                                font-size: 10.5px * Theme.font-scale;
+                                color: Theme.muted;
+                            }
+                            Text {
+                                text: root.resumable;
+                                font-size: 13px * Theme.font-scale;
+                                font-weight: 700;
+                                color: root.resumable-ok ? Theme.ok : Theme.err;
+                                overflow: elide;
+                            }
                         }
                     }
                 }
@@ -2728,8 +2945,10 @@ export component DetailsDialog inherits ThemedWindow {
             height: 8px;
         }
         Rectangle {
-            height: 10px;
-            border-radius: 5px;
+            height: 12px;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: Theme.line;
             background: Theme.bar-bg;
             clip: true;
             Rectangle {
@@ -2737,8 +2956,10 @@ export component DetailsDialog inherits ThemedWindow {
                 y: 0px;
                 height: parent.height;
                 width: parent.width * root.progress;
-                border-radius: 5px;
-                background: root.state == 4 ? Theme.err : root.state == 3 ? Theme.ok : Theme.accent;
+                border-radius: 6px;
+                background: root.state == 4 ? Theme.err
+                          : root.state == 3 ? Theme.ok
+                          : @linear-gradient(90deg, #004cff 0%, #0088ff 52%, #00e5ff 100%);
                 animate width {
                     duration: 100ms;
                     easing: linear;
@@ -2750,7 +2971,7 @@ export component DetailsDialog inherits ThemedWindow {
         }
         HorizontalLayout {
             spacing: 8px;
-            Button {
+            ActionBtn {
                 text: root.show-details ? @tr("<< Hide details") : @tr("Show details >>");
                 clicked => {
                     root.show-details = !root.show-details;
@@ -2759,20 +2980,20 @@ export component DetailsDialog inherits ThemedWindow {
             Rectangle {
                 horizontal-stretch: 1;
             }
-            if root.state == 0 || root.state == 1: Button {
+            if root.state == 0 || root.state == 1: ActionBtn {
                 text: @tr("Pause");
                 clicked => {
                     root.pause();
                 }
             }
-            if root.state == 2 || root.state == 4: Button {
+            if root.state == 2 || root.state == 4: ActionBtn {
                 text: @tr("Resume");
                 primary: true;
                 clicked => {
                     root.resume();
                 }
             }
-            Button {
+            ActionBtn {
                 text: root.state == 3 ? @tr("Close") : @tr("Cancel");
                 clicked => {
                     if (root.state == 3) {
@@ -2792,19 +3013,20 @@ export component DetailsDialog inherits ThemedWindow {
                 color: Theme.muted;
             }
             Rectangle {
-                height: 22px;
-                border-radius: 6px;
+                height: 24px;
+                border-radius: 7px;
                 border-width: 1px;
                 border-color: Theme.line;
-                background: Theme.card;
+                background: Theme.bar-bg;
                 clip: true;
                 for s in root.segs: Rectangle {
                     x: (parent.width) * s.start;
                     y: 2px;
                     width: max(2px, (parent.width) * (s.done - s.start));
                     height: parent.height - 4px;
-                    border-radius: 2px;
-                    background: s.busy ? Theme.accent : Theme.accent.transparentize(0.3);
+                    border-radius: 3px;
+                    background: s.busy ? @linear-gradient(180deg, #00f0ff 0%, #0055ff 100%)
+                                       : @linear-gradient(180deg, #00a8ff88 0%, #0044cc88 100%);
                     animate width {
                         duration: 100ms;
                         easing: linear;
@@ -2815,7 +3037,7 @@ export component DetailsDialog inherits ThemedWindow {
                     y: 0;
                     width: 1px;
                     height: parent.height;
-                    background: Theme.err.transparentize(0.5);
+                    background: Theme.accent.transparentize(0.65);
                 }
             }
             Rectangle {
@@ -2823,6 +3045,7 @@ export component DetailsDialog inherits ThemedWindow {
                 border-radius: 8px;
                 background: Theme.card;
                 border-width: 1px;
+                border-color: Theme.line;
                 clip: true;
                 VerticalLayout {
                     padding: 1px;
@@ -2959,26 +3182,26 @@ export component CompleteDialog inherits ThemedWindow {
             Rectangle {
                 horizontal-stretch: 1;
             }
-            Button {
+            ActionBtn {
                 text: @tr("Open");
                 primary: true;
                 clicked => {
                     root.open-file();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Open with…");
                 clicked => {
                     root.open-with();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Open folder");
                 clicked => {
                     root.open-folder();
                 }
             }
-            Button {
+            ActionBtn {
                 text: @tr("Close");
                 clicked => {
                     root.close-window();
