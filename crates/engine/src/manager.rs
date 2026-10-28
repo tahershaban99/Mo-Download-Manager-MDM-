@@ -90,22 +90,12 @@ pub struct Manager {
 }
 
 /// Default place for settings.json and downloads.json
-/// (%APPDATA%\Ezoo\EzooDownload\data on Windows). The list and settings of
-/// the earlier "SwiftGet" name are carried over the first time.
+/// (%APPDATA%\Mohamed\MDM\data on Windows).
 pub fn default_data_dir() -> PathBuf {
     let dir = directories::ProjectDirs::from("com", "Mohamed", "MDM")
         .map(|p| p.data_dir().to_path_buf())
         .unwrap_or_else(|| PathBuf::from("mdm-data"));
-    if !dir.exists() {
-        if let Some(old) = directories::ProjectDirs::from("com", "Ezoo", "EzooDownload").map(|p| p.data_dir().to_path_buf()) {
-            if old.exists() {
-                let _ = std::fs::create_dir_all(&dir);
-                for f in ["settings.json", "downloads.json"] {
-                    let _ = std::fs::copy(old.join(f), dir.join(f));
-                }
-            }
-        }
-    }
+    let _ = std::fs::create_dir_all(&dir);
     dir
 }
 

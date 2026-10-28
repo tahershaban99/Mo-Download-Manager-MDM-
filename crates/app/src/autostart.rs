@@ -25,7 +25,7 @@ mod imp {
 
     /// Installed with the setup program (which asked about autostart itself).
     pub fn installed_by_setup() -> bool {
-        reg(&["query", r"HKCU\Software\Mohamed\MDM", "/v", "Installed"]) || reg(&["query", r"HKCU\Software\Ezoo\EzooDownload", "/v", "Installed"])
+        reg(&["query", r"HKCU\Software\Mohamed\MDM", "/v", "Installed"])
     }
 
     pub fn set(enabled: bool) -> bool {

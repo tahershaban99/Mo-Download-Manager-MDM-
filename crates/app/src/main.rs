@@ -154,13 +154,23 @@ fn main() -> anyhow::Result<()> {
     let port = Settings::load(&data_dir.join("settings.json")).browser_port;
 
     // One instance only: if the port is taken by us, bring that one to front.
+    // If another program (e.g. Ezoo) holds the default port, fall back to port + 1.
     let server = match api::bind(port) {
         Ok(s) => Some(s),
         Err(_) => {
             if api::notify_existing(port) {
                 return Ok(());
             }
-            None
+            let alt = port.saturating_add(1);
+            match api::bind(alt) {
+                Ok(s) => Some(s),
+                Err(_) => {
+                    if api::notify_existing(alt) {
+                        return Ok(());
+                    }
+                    None
+                }
+            }
         }
     };
 
@@ -289,15 +299,25 @@ fn main() -> anyhow::Result<()> {
 
     // ------------------------------------------------------------ browser + clipboard
     if let Some(server) = server {
-        let ctx = ctx.clone();
         let cfg_mgr = mgr.clone();
         // the API thread only sends; the UI thread owns the windows
         let (tx, rx) = std::sync::mpsc::channel::<api::ApiEvent>();
         let rx = Rc::new(rx);
+        let tx_main = tx.clone();
         api::serve(server, move || api::config_json(&cfg_mgr.settings()), move |event| {
-            let _ = tx.send(event);
+            let _ = tx_main.send(event);
             let _ = slint::invoke_from_event_loop(|| {});
         });
+        if port != 9614 {
+            if let Ok(legacy_srv) = api::bind(9614) {
+                let cfg_mgr2 = mgr.clone();
+                let tx_leg = tx.clone();
+                api::serve(legacy_srv, move || api::config_json(&cfg_mgr2.settings()), move |event| {
+                    let _ = tx_leg.send(event);
+                    let _ = slint::invoke_from_event_loop(|| {});
+                });
+            }
+        }
         let ui2 = ui.clone();
         let api_timer = Timer::default();
         api_timer.start(TimerMode::Repeated, Duration::from_millis(50), move || {

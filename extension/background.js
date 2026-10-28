@@ -13,10 +13,12 @@
 // Chrome / Edge / Opera load yt-core.js here; Firefox lists it in its manifest
 if (typeof importScripts === "function") importScripts("yt-core.js");
 
-const DEFAULTS = { port: 9614, intercept: true, minSizeKB: 0 };
+const DEFAULTS = { port: 9615, intercept: true, minSizeKB: 0 };
 
 async function getOpts() {
-  return Object.assign({}, DEFAULTS, await chrome.storage.local.get(DEFAULTS));
+  const o = Object.assign({}, DEFAULTS, await chrome.storage.local.get(DEFAULTS));
+  if (o.port === 9614) { o.port = 9615; chrome.storage.local.set({ port: 9615 }); }
+  return o;
 }
 
 function apiUrl(port, path) {
@@ -64,7 +66,9 @@ async function appAlive() {
   const { port } = await getOpts();
   try {
     const r = await fetchWithTimeout(apiUrl(port, "/ping"), { headers: { "X-SwiftGet": "1" } }, 800);
-    if (r.ok) followAppVersion();
+    if (!r.ok) return false;
+    if (typeof r.json === "function") { const d = await r.json().catch(() => null); if (d && d.app && d.app !== "MDM") return false; }
+    followAppVersion();
     return r.ok;
   } catch {
     return false;
@@ -106,6 +110,7 @@ function isYoutube(url) {
 }
 
 async function sendToApp({ url, audioUrl, referrer, fileName, headers, sourcePage, sourceKey }) {
+  if (!(await appAlive())) throw new Error("Mo Download Manager (MDM) is not running");
   const { port } = await getOpts();
   const body = {
     url,

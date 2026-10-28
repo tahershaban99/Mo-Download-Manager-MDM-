@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-pub const DEFAULT_PORT: u16 = 9614;
+pub const DEFAULT_PORT: u16 = 9615;
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -498,6 +498,10 @@ impl Settings {
         }
         if s.limiter_on_startup {
             s.speed_limit_on = true;
+        }
+        if s.browser_port == 9614 {
+            s.browser_port = DEFAULT_PORT;
+            let _ = s.save(path);
         }
         s
     }

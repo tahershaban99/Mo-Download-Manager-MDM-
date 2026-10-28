@@ -1,4 +1,4 @@
-const DEFAULTS = { port: 9614, intercept: true, minSizeKB: 0, bubbleSize: "normal" };
+const DEFAULTS = { port: 9615, intercept: true, minSizeKB: 0, bubbleSize: "normal" };
 
 function saved() {
   const el = document.getElementById("saved");
@@ -8,6 +8,10 @@ function saved() {
 
 async function init() {
   const opts = Object.assign({}, DEFAULTS, await chrome.storage.local.get(DEFAULTS));
+  if (opts.port === 9614) {
+    opts.port = 9615;
+    await chrome.storage.local.set({ port: 9615 });
+  }
   const intercept = document.getElementById("intercept");
   const minSize = document.getElementById("minSize");
   const port = document.getElementById("port");

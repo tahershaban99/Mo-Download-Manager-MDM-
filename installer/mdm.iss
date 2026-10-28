@@ -14,11 +14,11 @@
   #define Stage "..\build-cache\stage"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.2"
+  #define MyAppVersion "2.0.3"
 #endif
 
 [Setup]
-AppId={{F5837666-2925-4FD9-8CE9-728BE9C5D7E4}
+AppId={{9D4E8B21-6C3A-4F19-A8E5-3B7D92C1E4F0}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -86,16 +86,6 @@ Source: "..\build-cache\redist\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: dont
 ; older versions kept the helpers next to the program
 Type: files; Name: "{app}\yt-dlp.exe"
 Type: files; Name: "{app}\ffmpeg.exe"
-; clean up any legacy EzooDownload files and shortcuts completely
-Type: files; Name: "{app}\EzooDownload.exe"
-Type: files; Name: "{app}\ezoo-download-firefox.xpi"
-Type: files; Name: "{autodesktop}\Ezoo Download.lnk"
-Type: files; Name: "{userdesktop}\Ezoo Download.lnk"
-Type: files; Name: "{commondesktop}\Ezoo Download.lnk"
-Type: files; Name: "{userprograms}\Ezoo Download\*"
-Type: files; Name: "{commonprograms}\Ezoo Download\*"
-Type: dirifempty; Name: "{userprograms}\Ezoo Download"
-Type: dirifempty; Name: "{commonprograms}\Ezoo Download"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; IconFilename: "{app}\icon.ico"
@@ -108,9 +98,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; IconFilename:
 Root: HKCU; Subkey: "Software\Mohamed\MDM"; ValueType: string; ValueName: "Installed"; ValueData: "1"; Flags: uninsdeletekey
 ; start in the background (next to the clock) when the user signs in
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "MDM"; ValueData: """{app}\{#MyAppExe}"" --background"; Flags: uninsdeletevalue; Tasks: autostart
-; clean up any legacy autostart entries for Ezoo
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "EzooDownload"; Flags: deletevalue
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "Ezoo"; Flags: deletevalue
 
 [Run]
 Filename: "{app}\{#MyAppExe}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
@@ -174,9 +161,19 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
+  OldName: String;
+  OldKey: String;
 begin
-  { stop any running instances of MDM or old EzooDownload }
-  Exec(ExpandConstant('{cmd}'), '/C taskkill /F /IM EzooDownload.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  { If an earlier MDM build registered under the legacy shared AppId, remove that
+    uninstall entry so Ezoo's installer will never mistake MDM's folder for its own }
+  OldKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{F5837666-2925-4FD9-8CE9-728BE9C5D7E4}_is1';
+  if RegQueryStringValue(HKCU, OldKey, 'DisplayName', OldName) then
+  begin
+    if Pos('Mo Download Manager', OldName) > 0 then
+      RegDeleteKeyIncludingSubkeys(HKCU, OldKey);
+  end;
+
+  { stop any running instances of MDM }
   Exec(ExpandConstant('{cmd}'), '/C taskkill /IM {#MyAppExe} >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Sleep(1500);
   Exec(ExpandConstant('{cmd}'), '/C taskkill /F /IM {#MyAppExe} >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, Code);

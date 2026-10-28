@@ -130,9 +130,24 @@ pub fn bind(port: u16) -> Result<Server, String> {
     Server::http(("127.0.0.1", port)).map_err(|e| e.to_string())
 }
 
-/// Another SwiftGet is already running on this port: ask it to show itself.
+/// Another MDM is already running on this port: ask it to show itself.
 pub fn notify_existing(port: u16) -> bool {
-    let Ok(mut s) = TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), Duration::from_millis(800)) else {
+    let addr = ([127, 0, 0, 1], port).into();
+    let Ok(mut ping) = TcpStream::connect_timeout(&addr, Duration::from_millis(800)) else {
+        return false;
+    };
+    let _ = ping.set_read_timeout(Some(Duration::from_secs(2)));
+    let ping_req = "GET /ping HTTP/1.1\r\nHost: 127.0.0.1\r\nX-SwiftGet: 1\r\nConnection: close\r\n\r\n";
+    if ping.write_all(ping_req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut ping_buf = String::new();
+    let _ = ping.read_to_string(&mut ping_buf);
+    if !ping_buf.contains("\"app\":\"MDM\"") {
+        return false;
+    }
+
+    let Ok(mut s) = TcpStream::connect_timeout(&addr, Duration::from_millis(800)) else {
         return false;
     };
     let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
@@ -142,7 +157,7 @@ pub fn notify_existing(port: u16) -> bool {
     }
     let mut buf = String::new();
     let _ = s.read_to_string(&mut buf);
-    buf.contains("MDM") || buf.contains("Ezoo") || buf.starts_with("HTTP/1.1 200")
+    buf.contains("\"app\":\"MDM\"")
 }
 
 pub fn serve(
