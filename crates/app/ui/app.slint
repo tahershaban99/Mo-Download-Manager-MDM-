@@ -1814,11 +1814,6 @@ export component MainWindow inherits ThemedWindow {
                         clicked => { root.active-menu = -1; root.browsers(); }
                     }
                     MenuEntry {
-                        text: @tr("Tip of the day…");
-                        glyph: "bulb";
-                        clicked => { root.active-menu = -1; root.tips(); }
-                    }
-                    MenuEntry {
                         text: @tr("Check for updates");
                         glyph: "refresh";
                         clicked => { root.active-menu = -1; root.check-app-update(); }

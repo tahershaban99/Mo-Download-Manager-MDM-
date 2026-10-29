@@ -472,9 +472,6 @@ fn main() -> anyhow::Result<()> {
             let _ = mgr.set_settings(s);
             let ui = ui.clone();
             Timer::single_shot(Duration::from_millis(800), move || browser::open(&ui));
-        } else if s.show_tips {
-            let ui = ui.clone();
-            Timer::single_shot(Duration::from_millis(600), move || extra::show_tip(&ui, false));
         }
     }
     slint::run_event_loop_until_quit()?;

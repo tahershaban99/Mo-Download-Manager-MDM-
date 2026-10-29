@@ -5,3 +5,4 @@ signing/
 __pycache__/
 /dist/*.exe
 /dist/*.zip
+/scratch/

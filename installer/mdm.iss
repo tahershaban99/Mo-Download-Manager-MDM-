@@ -14,7 +14,7 @@
   #define Stage "..\build-cache\stage"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.3"
+  #define MyAppVersion "2.0.4"
 #endif
 
 [Setup]
@@ -42,7 +42,12 @@ VersionInfoCopyright=Copyright (C) 2026 Mohamed
 UninstallDisplayName={#MyAppName}
 Compression=lzma2/max
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=modern dark hidebevels
+WizardBackColor=#15161e
+WizardImageBackColor=#15161e
+WizardSmallImageBackColor=#15161e
+WizardImageFile=wizard-dark-1x.png,wizard-dark.png
+WizardSmallImageFile=wizard-small.png,wizard-small-2x.png
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
@@ -114,6 +119,25 @@ Type: filesandordirs; Name: "{app}\extension-firefox"
 Type: filesandordirs; Name: "{app}\tools"
 
 [Code]
+const
+  DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+  DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
+
+function DwmSetWindowAttribute(hwnd: HWND; dwAttribute: DWORD; var pvAttribute: Integer; cbAttribute: DWORD): Integer;
+  external 'DwmSetWindowAttribute@dwmapi.dll stdcall delayload';
+
+procedure InitializeWizard;
+var
+  Val: Integer;
+begin
+  Val := 1;
+  try
+    if DwmSetWindowAttribute(WizardForm.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, Val, SizeOf(Val)) <> 0 then
+      DwmSetWindowAttribute(WizardForm.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, Val, SizeOf(Val));
+  except
+  end;
+end;
+
 function IsAutoUpdate: Boolean;
 begin
   Result := ExpandConstant('{param:AUTOUPDATE|0}') = '1';
