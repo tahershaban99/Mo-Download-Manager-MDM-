@@ -1068,7 +1068,48 @@ export component Cell inherits Text {
     overflow: elide;
 }
 
-// ---- right-click menu pieces
+// ---- unified theme-adaptive menu components
+export component MenuBox inherits Rectangle {
+    background: Theme.panel;
+    border-width: 1px;
+    border-color: Theme.dark ? Theme.line : #00000022;
+    border-radius: 6px;
+    drop-shadow-blur: 16px;
+    drop-shadow-color: Theme.dark ? #00000080 : #00000028;
+    drop-shadow-offset-y: 4px;
+}
+
+export component MenuBarBtn inherits Rectangle {
+    in property <string> text;
+    in property <bool> active: false;
+    callback clicked();
+    callback hovered();
+    property <bool> has-hover <=> ta.has-hover;
+    changed has-hover => {
+        if self.has-hover {
+            root.hovered();
+        }
+    }
+    height: 24px;
+    border-radius: 4px;
+    background: root.active ? Theme.select : self.has-hover ? Theme.hover : transparent;
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.active ? Theme.accent : Theme.toolbar-text;
+            font-size: 12px * Theme.font-scale;
+            font-weight: root.active ? 600 : 400;
+            vertical-alignment: center;
+        }
+    }
+}
+
 export component MenuEntry inherits Rectangle {
     in property <string> text;
     in property <string> glyph;
@@ -1076,9 +1117,11 @@ export component MenuEntry inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> bold;
     in property <bool> indent;
+    in property <bool> checkable;
+    in property <bool> checked;
     callback clicked();
     height: 26px;
-    border-radius: 3px;
+    border-radius: 4px;
     background: ta.has-hover && root.enabled ? Theme.select : transparent;
     ta := TouchArea {
         width: parent.width;
@@ -1088,6 +1131,14 @@ export component MenuEntry inherits Rectangle {
             root.clicked();
         }
     }
+    if ta.has-hover && root.enabled: Rectangle {
+        x: 0px;
+        y: 3px;
+        width: 3px;
+        height: parent.height - 6px;
+        border-radius: 1.5px;
+        background: Theme.accent;
+    }
     HorizontalLayout {
         padding-left: root.indent ? 26px : 8px;
         padding-right: 10px;
@@ -1095,7 +1146,12 @@ export component MenuEntry inherits Rectangle {
         opacity: root.enabled ? 1.0 : 0.4;
         Rectangle {
             width: 16px;
-            if root.glyph != "": Glyph {
+            if root.checkable && root.checked: Glyph {
+                y: (parent.height - 16px) / 2;
+                kind: "check";
+                tint: root.glyph-color;
+            }
+            if !root.checkable && root.glyph != "": Glyph {
                 y: (parent.height - 16px) / 2;
                 kind: root.glyph;
                 tint: root.glyph-color;
@@ -1128,10 +1184,11 @@ export component MenuLabel inherits Rectangle {
     in property <string> text;
     height: 22px;
     Text {
-        x: 34px;
+        x: 10px;
         text: root.text;
         font-size: 11px * Theme.font-scale;
-        color: Theme.muted;
+        font-weight: 600;
+        color: Theme.accent;
         vertical-alignment: center;
         height: parent.height;
     }
