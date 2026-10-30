@@ -4,7 +4,7 @@
 
 **مدير تحميلات فائق السرعة لنظام ويندوز، مكتوب بلغة Rust**
 
-تطوير **Mohamed**
+تطوير **Taher Shaban**
 
 [![Release](https://img.shields.io/badge/Release-v2.0-0078D6?style=for-the-badge&logo=github)](https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/tag/v2.0)
 [![Download MDM](https://img.shields.io/badge/تحميل_البرنامج-MDM--Setup.exe-2ea44f?style=for-the-badge&logo=windows)](https://github.com/tahershaban99/Mo-Download-Manager-MDM-/releases/download/v2.0/MDM-Setup.exe)
@@ -107,7 +107,7 @@
 
 ## 👨‍💻 المطوّر
 
-**Mohamed**
+**Taher Shaban**
 
 ---
 
